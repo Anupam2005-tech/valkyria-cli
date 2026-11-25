@@ -1,0 +1,21 @@
+# Valkyrie CLI
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+*.egg
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.so
+*.dylib
+.env
+.env.*
+!.env.example
+
+# Vault and auth (never commit secrets)
+vault.enc
+auth.json
