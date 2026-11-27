@@ -100,7 +100,9 @@ def get_login_page_html(*, select_account: bool = False) -> str:
         <div class="subtitle">Terminal-first AI workspace</div>
         <div class="status" id="status">{subtitle_prompt}</div>
         <button id="signin-btn" onclick="signIn()">{button_label}</button>
-        <div class="footer">Authentication is handled by Firebase.<br>No passwords are stored locally.</div>
+        <div class="footer">
+            Authentication is handled by Firebase.<br>No passwords are stored locally.
+        </div>
     </div>
 
     <script type="module">

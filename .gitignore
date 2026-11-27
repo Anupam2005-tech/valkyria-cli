@@ -19,3 +19,9 @@ build/
 # Vault and auth (never commit secrets)
 vault.enc
 auth.json
+
+# Next.js client build/cache
+client/.next/
+client/node_modules/
+client/out/
+client/*.tsbuildinfo

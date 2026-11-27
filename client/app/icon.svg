@@ -1,0 +1,22 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="80" height="80" rx="16" fill="#101113" />
+  <path
+    d="M17 17 40 65 63 17"
+    stroke="#F2F4F1"
+    strokeWidth="7"
+    strokeLinecap="square"
+    strokeLinejoin="miter"
+  />
+  <path
+    d="M40 12v23"
+    stroke="#FFC929"
+    strokeWidth="4"
+    strokeLinecap="square"
+  />
+  <path
+    d="m34 33 6 9 6-9"
+    stroke="#FFC929"
+    strokeWidth="3"
+    strokeLinecap="square"
+  />
+</svg>

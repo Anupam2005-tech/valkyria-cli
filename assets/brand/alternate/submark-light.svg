@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-labelledby="title desc">
+  <title id="title">Valkyrie alternate compact submark, light theme</title>
+  <desc id="desc">A minimal V monogram with a small yellow directional point.</desc>
+  <path d="M17 17 40 65 63 17" fill="none" stroke="#1C1D20" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M40 12v23" fill="none" stroke="#FFC929" stroke-width="4" stroke-linecap="square"/>
+  <path d="m34 33 6 9 6-9" fill="none" stroke="#FFC929" stroke-width="3" stroke-linecap="square"/>
+</svg>

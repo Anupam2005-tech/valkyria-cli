@@ -13,12 +13,12 @@ we keep local; if remote is newer, we prompt before overwriting.
 from __future__ import annotations
 
 import base64
+from datetime import UTC
 from typing import Any
 
 import httpx
 
 from valkyrie.auth.firebase_config import FIREBASE_CONFIG
-
 
 # Firestore REST API base
 _FIRESTORE_BASE = (
@@ -134,7 +134,7 @@ def delete_remote_vault(id_token: str, uid: str) -> bool:
 
 def _now_iso() -> str:
     """Current UTC time in ISO format for Firestore."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 

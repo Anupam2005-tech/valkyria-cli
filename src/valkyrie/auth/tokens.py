@@ -10,8 +10,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -21,6 +20,9 @@ from valkyrie.auth.firebase_config import (
     FIREBASE_TOKEN_BASE,
 )
 from valkyrie.core.paths import get_auth_path
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass
@@ -53,7 +55,7 @@ class AuthUser:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "AuthUser":
+    def from_dict(cls, data: dict[str, Any]) -> AuthUser:
         """Deserialize from dict."""
         return cls(
             uid=data["uid"],
@@ -66,7 +68,7 @@ class AuthUser:
         )
 
     @classmethod
-    def from_oauth_callback(cls, data: dict[str, Any]) -> "AuthUser":
+    def from_oauth_callback(cls, data: dict[str, Any]) -> AuthUser:
         """Create from the OAuth callback data."""
         return cls(
             uid=data["uid"],

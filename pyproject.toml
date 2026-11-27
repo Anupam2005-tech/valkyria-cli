@@ -1,5 +1,5 @@
 [project]
-name = "valkyrie"
+name = "valkyria-cli"
 version = "0.1.0"
 description = "Terminal-first, multi-model AI agent with local retrieval, controlled system access, and durable sessions"
 readme = "readme.md"
@@ -52,6 +52,14 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 mypy_path = "src"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "client",
+    "dist",
+    ".venv",
+    "assets",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

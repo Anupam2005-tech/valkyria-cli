@@ -1,6 +1,5 @@
 """Tests for the vault crypto and store modules."""
 
-import json
 import os
 import tempfile
 from unittest.mock import patch
@@ -51,7 +50,7 @@ class TestVaultCrypto:
 
         try:
             decrypt(blob, "wrong-password")
-            assert False, "Should have raised InvalidTag"
+            raise AssertionError("Should have raised InvalidTag")
         except InvalidTag:
             pass
 
@@ -75,7 +74,8 @@ class TestVaultStore:
         """Add a key and list it back."""
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = os.path.join(tmpdir, "vault.enc")
-            with patch("valkyrie.vault.store.get_vault_path", return_value=__import__("pathlib").Path(vault_path)):
+            p = __import__("pathlib").Path(vault_path)
+            with patch("valkyrie.vault.store.get_vault_path", return_value=p):
                 from valkyrie.vault.store import add_key, list_keys
 
                 add_key("password123", "groq", "gsk_test_key_12345678")
@@ -89,7 +89,8 @@ class TestVaultStore:
         """Add a key and retrieve the full value."""
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = os.path.join(tmpdir, "vault.enc")
-            with patch("valkyrie.vault.store.get_vault_path", return_value=__import__("pathlib").Path(vault_path)):
+            p = __import__("pathlib").Path(vault_path)
+            with patch("valkyrie.vault.store.get_vault_path", return_value=p):
                 from valkyrie.vault.store import add_key, get_key
 
                 add_key("password123", "gemini", "AIzaSy_test_key")
@@ -100,7 +101,8 @@ class TestVaultStore:
         """Remove a key from the vault."""
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = os.path.join(tmpdir, "vault.enc")
-            with patch("valkyrie.vault.store.get_vault_path", return_value=__import__("pathlib").Path(vault_path)):
+            p = __import__("pathlib").Path(vault_path)
+            with patch("valkyrie.vault.store.get_vault_path", return_value=p):
                 from valkyrie.vault.store import add_key, get_key, remove_key
 
                 add_key("password123", "groq", "gsk_key")
@@ -111,7 +113,8 @@ class TestVaultStore:
         """Removing a key that doesn't exist returns False."""
         with tempfile.TemporaryDirectory() as tmpdir:
             vault_path = os.path.join(tmpdir, "vault.enc")
-            with patch("valkyrie.vault.store.get_vault_path", return_value=__import__("pathlib").Path(vault_path)):
+            p = __import__("pathlib").Path(vault_path)
+            with patch("valkyrie.vault.store.get_vault_path", return_value=p):
                 from valkyrie.vault.store import add_key, remove_key
 
                 add_key("password123", "groq", "gsk_key")
