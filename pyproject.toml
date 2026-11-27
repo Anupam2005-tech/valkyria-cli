@@ -1,6 +1,6 @@
 [project]
 name = "valkyria-cli"
-version = "0.1.1"
+version = "0.1.2"
 description = "Terminal-first, multi-model AI agent with local retrieval, controlled system access, and durable sessions"
 readme = "readme.md"
 requires-python = ">=3.12"
