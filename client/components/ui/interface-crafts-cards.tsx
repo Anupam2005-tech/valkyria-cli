@@ -15,11 +15,13 @@ export interface CraftCardItem {
 interface InterfaceCraftsCardsProps {
   items: CraftCardItem[];
   className?: string;
+  showCopy?: boolean;
 }
 
 export function InterfaceCraftsCards({
   items,
   className = "",
+  showCopy = true,
 }: InterfaceCraftsCardsProps) {
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -85,7 +87,7 @@ export function InterfaceCraftsCards({
               </div>
 
               <div>
-                {isActive ? (
+                {isActive && showCopy ? (
                   <CopyChip
                     command={item.command}
                     prefix={item.command.startsWith("/") ? "" : "$"}

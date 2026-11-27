@@ -82,10 +82,11 @@ class _OAuthHandler(BaseHTTPRequestHandler):
                 _result.data = data
                 _result.event.set()
 
-                # Send success response with CORS headers for the local page
+                # Send success response with CORS + PNA headers for the hosted login page
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Private-Network", "true")
                 self.end_headers()
                 self.wfile.write(json.dumps({"status": "ok"}).encode())
 
@@ -94,17 +95,19 @@ class _OAuthHandler(BaseHTTPRequestHandler):
                 _result.event.set()
                 self.send_response(400)
                 self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Private-Network", "true")
                 self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
 
     def do_OPTIONS(self) -> None:  # noqa: N802
-        """Handle CORS preflight."""
+        """Handle CORS and Private Network Access preflight."""
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Private-Network", "true")
         self.end_headers()
 
 

@@ -2339,8 +2339,8 @@ wheels = [
 ]
 
 [[package]]
-name = "valkyrie"
-version = "0.1.0"
+name = "valkyria-cli"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "argon2-cffi" },

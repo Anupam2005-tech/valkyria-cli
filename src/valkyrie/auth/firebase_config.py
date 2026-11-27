@@ -6,6 +6,8 @@ The Web API Key is NOT a secret — it identifies the Firebase project
 for client-side auth calls, same as it would in a web app's HTML.
 """
 
+import os
+
 # ── Firebase project: valkyria CLI (filum-708c0) ───────────────────────────
 
 FIREBASE_CONFIG = {
@@ -16,6 +18,9 @@ FIREBASE_CONFIG = {
     "messagingSenderId": "496089235861",
     "appId": "1:496089235861:web:f709d081fc867d9f3ab69c",
 }
+
+# Hosted web login page URL (override with VALKYRIE_AUTH_URL for local testing)
+AUTH_WEB_URL = os.environ.get("VALKYRIE_AUTH_URL", "https://valkyrie-cli.vercel.app/login")
 
 # Firebase Auth REST API (Identity Toolkit v1)
 FIREBASE_AUTH_BASE = "https://identitytoolkit.googleapis.com/v1"
