@@ -1,5 +1,3 @@
-export const INSTALL_CMD = "pipx install valkyria-cli";
-
 export const PROVIDER_STRIP = [
   "Groq",
   "Gemini",
@@ -7,14 +5,6 @@ export const PROVIDER_STRIP = [
   "Pinecone",
   "Firebase",
   "FastAPI",
-];
-
-export const NAV_LINKS = [
-  { label: "How it works", href: "/#how-it-works", section: 1 },
-  { label: "Why Valkyrie", href: "/#different", section: 2 },
-  { label: "FAQ", href: "/#faq", section: 4 },
-  { label: "Setup", href: "/#setup", section: 5 },
-  { label: "Docs", href: "/docs", section: -1 },
 ];
 
 export const HOW_IT_WORKS_STEPS = [
@@ -217,39 +207,6 @@ export const FAQ_ITEMS = [
   {
     q: "How do sessions work?",
     a: "/new opens a fresh context window. /session lists previous sessions so you can resume, rename or delete them.",
-  },
-];
-
-export const SETUP_STEPS = [
-  {
-    num: "01",
-    title: "Install",
-    command: "pipx install valkyria-cli",
-    note: "Python 3.12 or newer",
-  },
-  {
-    num: "02",
-    title: "Log in",
-    command: "valkyrie login",
-    note: "Opens your browser. Finish there and you are back in the terminal.",
-  },
-  {
-    num: "03",
-    title: "Onboard",
-    command: "valkyrie init",
-    note: "Add your provider keys, set what Valkyrie calls you, tell it your craft.",
-  },
-  {
-    num: "04",
-    title: "Index your project",
-    command: "/index .",
-    note: "Chunks your files into your Pinecone index.",
-  },
-  {
-    num: "05",
-    title: "Plan and build",
-    command: "/plan <your task> then /build",
-    note: "Approve each step and ship.",
   },
 ];
 

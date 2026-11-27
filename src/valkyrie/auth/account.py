@@ -11,11 +11,7 @@ import webbrowser
 
 import click
 
-from valkyrie.auth.firebase_config import (
-    AUTH_WEB_URL,
-    OAUTH_CALLBACK_HOST,
-    OAUTH_CALLBACK_PORT,
-)
+from valkyrie.auth.firebase_config import AUTH_WEB_URL
 from valkyrie.auth.server import run_auth_server
 from valkyrie.auth.tokens import (
     AuthUser,
@@ -42,10 +38,7 @@ from valkyrie.vault.sync import delete_remote_vault, pull_vault
 
 def _run_browser_oauth(*, select_account: bool = False) -> AuthUser | None:
     """Open the browser OAuth flow, wait for callback, and persist tokens."""
-    query = f"port={OAUTH_CALLBACK_PORT}&host={OAUTH_CALLBACK_HOST}"
-    if select_account:
-        query += "&select_account=1"
-    login_url = f"{AUTH_WEB_URL}?{query}"
+    login_url = f"{AUTH_WEB_URL}?select_account=1" if select_account else AUTH_WEB_URL
     print_info("Opening your browser for Google sign-in.")
     print_info(f"If it doesn't open, visit: [accent]{login_url}[/accent]")
     print_info("[dim]Waiting for authentication...[/dim]")
