@@ -17,8 +17,8 @@ uv tool install valkyrie
 ```
 
 ## Key Pages
-- Home: https://valkyrie.dev/
-- Documentation & Command Reference: https://valkyrie.dev/docs
-- Privacy Policy: https://valkyrie.dev/privacy
-- Terms & Conditions: https://valkyrie.dev/terms
+- Home: https://valkyrie-cli.vercel.app/
+- Documentation & Command Reference: https://valkyrie-cli.vercel.app/docs
+- Privacy Policy: https://valkyrie-cli.vercel.app/privacy
+- Terms & Conditions: https://valkyrie-cli.vercel.app/terms
 

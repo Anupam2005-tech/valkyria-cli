@@ -3,7 +3,7 @@ import React from "react";
 import "./globals.css";
 import { FAQ_ITEMS } from "@/lib/constants";
 
-const SITE_URL = "https://valkyrie.dev";
+const SITE_URL = "https://valkyrie-cli.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

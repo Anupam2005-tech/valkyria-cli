@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
         allow: ["/", "/docs", "/terms", "/privacy", "/llms.txt"],
       },
     ],
-    sitemap: "https://valkyrie.dev/sitemap.xml",
-    host: "https://valkyrie.dev",
+    sitemap: "https://valkyrie-cli.vercel.app/sitemap.xml",
+    host: "https://valkyrie-cli.vercel.app",
   };
 }
