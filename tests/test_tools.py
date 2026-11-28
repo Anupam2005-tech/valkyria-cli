@@ -274,3 +274,79 @@ class TestAgentToolLoop:
 
         assert reply == "Updated note.txt to alpha gamma."
         assert (ws / "note.txt").read_text() == "alpha gamma"
+
+
+class TestRunCommandAndPkgTools:
+    """Tests for sandboxed run_command, pkg_install, and /run + /pkg slash commands."""
+
+    def test_run_command_executes_and_captures_output(self, tmp_path: Path) -> None:
+        toolset = AgentToolset(workspace_root=tmp_path, auto_approve=True)
+        openai_specs = toolset.openai_tools()
+        gemini_decls = toolset.gemini_declarations()
+        assert any(s["function"]["name"] == "run_command" for s in openai_specs)
+        assert any(d["name"] == "pkg_install" for d in gemini_decls)
+
+        ok, out = toolset.execute("run_command", {"command": "echo valkyrie_ok"})
+        assert ok is True
+        assert "[exit 0]" in out
+        assert "valkyrie_ok" in out
+
+    def test_run_command_blocks_denylist_even_with_auto_approve(self, tmp_path: Path) -> None:
+        toolset = AgentToolset(workspace_root=tmp_path, auto_approve=True)
+        ok, out = toolset.execute("run_command", {"command": "rm -rf /"})
+        assert ok is True  # tool catches PermissionError and returns Error string
+        assert "Error:" in out
+        assert "blocked pattern" in out
+
+    def test_run_command_respects_user_decline(self, tmp_path: Path) -> None:
+        toolset = AgentToolset(
+            workspace_root=tmp_path,
+            confirm_fn=lambda action, target, preview: False,
+            auto_approve=False,
+        )
+        ok, out = toolset.execute("run_command", {"command": "echo should_not_run"})
+        assert ok is True
+        assert "User declined" in out
+
+    def test_pkg_install_resolves_and_runs(self, tmp_path: Path) -> None:
+        from valkyrie.tools.pkg_manager import _resolve_command
+
+        assert _resolve_command("pip", "install", ["httpx", "rich"]) == "pip install httpx rich"
+        assert _resolve_command("npm", "install", ["lodash"]) == "npm install lodash"
+        assert _resolve_command("uv", "list", []) == "uv pip list"
+
+        toolset = AgentToolset(workspace_root=tmp_path, auto_approve=True)
+        fake_proc = MagicMock(returncode=0, stdout="Successfully installed httpx", stderr="")
+        with patch("valkyrie.tools.run_command.subprocess.run", return_value=fake_proc) as mock_run:
+            ok, out = toolset.execute(
+                "pkg_install",
+                {"manager": "pip", "action": "install", "packages": ["httpx"]},
+            )
+        assert ok is True
+        assert "Successfully installed httpx" in out
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[0] == "pip install httpx"
+
+    def test_slash_run_pkg_and_auto_propagation(self, tmp_path: Path) -> None:
+        engine = ChatEngine(
+            config=ValkyrieConfig(),
+            registry=ModelRegistry(),
+            api_keys={"groq": "gsk_test"},
+            initial_model="groq/openai/gpt-oss-120b",
+            workspace_root=tmp_path,
+            auto_approve_tools=False,
+        )
+        assert engine.toolset.auto_approve is False
+        _handle_slash_command("/auto on", engine)
+        assert engine.auto_approve_tools is True
+        assert engine.toolset.auto_approve is True
+
+        fake_proc = MagicMock(returncode=0, stdout="hello_slash", stderr="")
+        with patch("valkyrie.tools.run_command.subprocess.run", return_value=fake_proc) as mock_run:
+            keep_going = _handle_slash_command("/run echo hello_slash", engine)
+            assert keep_going is True
+            assert mock_run.call_args.args[0] == "echo hello_slash"
+
+            keep_going_pkg = _handle_slash_command("/pkg pip install rich", engine)
+            assert keep_going_pkg is True
+            assert mock_run.call_args.args[0] == "pip install rich"

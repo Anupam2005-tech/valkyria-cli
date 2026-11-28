@@ -209,7 +209,7 @@ const Shader: React.FC<{
 
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
@@ -284,10 +284,13 @@ const Shader: React.FC<{
     resize();
 
     let raf = 0;
+    let visible = true;
     let lastFrameTime = 0;
     const startTime = performance.now();
 
     const tick = (now: number) => {
+      raf = 0;
+      if (!visible) return;
       if (reducedMotion) {
         preparedUniforms.u_time.value = 1.6;
         renderer.render(scene, camera);
@@ -301,10 +304,22 @@ const Shader: React.FC<{
       renderer.render(scene, camera);
     };
 
+    const io = new IntersectionObserver((entries) => {
+      visible = entries.some((e) => e.isIntersecting);
+      if (visible && !raf && !reducedMotion) {
+        raf = requestAnimationFrame(tick);
+      } else if (!visible && raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    });
+    io.observe(container);
+
     raf = requestAnimationFrame(tick);
 
     return () => {
       cancelAnimationFrame(raf);
+      io.disconnect();
       ro.disconnect();
       geometry.dispose();
       material.dispose();

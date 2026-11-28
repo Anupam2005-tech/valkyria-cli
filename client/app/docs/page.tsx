@@ -140,7 +140,7 @@ function CodeBlock({ lang, content }: { lang: string; content: string }) {
   return (
     <div className="my-5 overflow-hidden rounded-[12px] border border-[rgba(242,244,241,0.12)] bg-[#101113]">
       <div className="flex items-center justify-between border-b border-[rgba(242,244,241,0.10)] px-4 py-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[#6F747A]">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[#9499A0]">
           {lang}
         </span>
         <button
@@ -243,7 +243,7 @@ export default function DocsPage() {
                         onClick={() =>
                           setCollapsedGroups((p) => ({ ...p, [grp]: !p[grp] }))
                         }
-                        className="flex w-full items-center justify-between py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[#6F747A] hover:text-[#F2F4F1]"
+                        className="flex w-full items-center justify-between py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[#9499A0] hover:text-[#F2F4F1]"
                       >
                         <span>{grp}</span>
                         <ChevronRight
@@ -320,7 +320,7 @@ export default function DocsPage() {
                     <div className="mt-6 overflow-x-auto rounded-[16px] border border-[rgba(242,244,241,0.12)] bg-[#151619]">
                       <table className="w-full text-left text-sm">
                         <thead>
-                          <tr className="border-b border-[rgba(242,244,241,0.10)] font-mono text-xs uppercase tracking-wider text-[#6F747A]">
+                          <tr className="border-b border-[rgba(242,244,241,0.10)] font-mono text-xs uppercase tracking-wider text-[#9499A0]">
                             <th className="px-4 py-3">Command</th>
                             <th className="px-4 py-3">Action</th>
                           </tr>
@@ -367,7 +367,7 @@ export default function DocsPage() {
               </div>
               <Link
                 href="/"
-                className="font-mono text-xs text-[#6F747A] hover:text-[#FFC929]"
+                className="font-mono text-xs text-[#9499A0] hover:text-[#FFC929]"
               >
                 Edit this page [link]
               </Link>
@@ -377,7 +377,7 @@ export default function DocsPage() {
           {/* Right TOC */}
           <aside className="hidden lg:block lg:col-span-3">
             <div className="sticky top-24">
-              <span className="type-label text-[#6F747A]">On this page</span>
+              <span className="type-label text-[#9499A0]">On this page</span>
               <ul className="mt-4 space-y-2 border-l border-[rgba(242,244,241,0.10)] pl-3">
                 {DOC_SECTIONS.map((sec) => (
                   <li key={sec.id}>
@@ -386,7 +386,7 @@ export default function DocsPage() {
                       className={`block text-xs transition-colors ${
                         activeId === sec.id
                           ? "text-[#FFC929] font-medium"
-                          : "text-[#6F747A] hover:text-[#F2F4F1]"
+                          : "text-[#9499A0] hover:text-[#F2F4F1]"
                       }`}
                     >
                       {sec.title}
@@ -416,7 +416,7 @@ export default function DocsPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Jump to a manual section..."
-                className="w-full bg-transparent text-sm text-[#F2F4F1] placeholder-[#6F747A] focus:outline-none"
+                className="w-full bg-transparent text-sm text-[#F2F4F1] placeholder-[#9499A0] focus:outline-none"
               />
             </div>
             <ul className="mt-3 max-h-72 overflow-y-auto space-y-1">
@@ -431,7 +431,7 @@ export default function DocsPage() {
                     className="flex items-center justify-between rounded-[10px] px-3 py-2 text-sm text-[#A3A7AB] hover:bg-[#26282C] hover:text-[#FFC929]"
                   >
                     <span>{s.title}</span>
-                    <span className="font-mono text-[11px] text-[#6F747A]">{s.group}</span>
+                    <span className="font-mono text-[11px] text-[#9499A0]">{s.group}</span>
                   </a>
                 </li>
               ))}

@@ -95,7 +95,7 @@ export function DifferentSection() {
                   <span className="flex items-center gap-3">
                     <span
                       className={`font-mono text-xs tabular-nums ${
-                        isSelected ? "text-[#FFC929]" : "text-[#6F747A]"
+                        isSelected ? "text-[#FFC929]" : "text-[#9499A0]"
                       }`}
                     >
                       0{idx + 1}
@@ -134,14 +134,14 @@ export function DifferentSection() {
             {/* Typical AI CLI card */}
             <div className="flex flex-col justify-between rounded-[14px] border border-[#1C1D20]/10 bg-[#F2F4F1]/75 p-5">
               <div>
-                <span className="font-mono text-xs text-[#6F747A]">
+                <span className="font-mono text-xs text-[#9499A0]">
                   Typical AI CLI
                 </span>
                 <p className="mt-4 font-display text-lg sm:text-xl font-medium text-[#1C1D20]/60 line-through decoration-[#1C1D20]/25">
                   {active.typical}
                 </p>
               </div>
-              <div className="mt-8 font-mono text-xs text-[#6F747A]">
+              <div className="mt-8 font-mono text-xs text-[#9499A0]">
                 0{selectedIdx + 1} · {active.feature}
               </div>
             </div>

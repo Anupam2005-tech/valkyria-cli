@@ -156,10 +156,11 @@ const HWF_CSS = `
 .hwf-col h3 { margin: 0; font: inherit; opacity: .4; font-weight: 500; }
 .hwf-col ul { list-style: none; margin: 0; padding: 0; }
 .hwf-col a, .hwf-up {
-  color: inherit; text-decoration: none; opacity: .78; background: none; border: 0; padding: 0;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 10px 4px;
+  color: inherit; text-decoration: none; opacity: .78; background: none; border: 0;
   font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
   background-image: linear-gradient(currentColor, currentColor); background-size: 0% 1px;
-  background-repeat: no-repeat; background-position: 0 100%; transition: opacity .25s ease, background-size .35s cubic-bezier(.2,.7,.1,1);
+  background-repeat: no-repeat; background-position: 0 calc(100% - 8px); transition: opacity .25s ease, background-size .35s cubic-bezier(.2,.7,.1,1);
 }
 .hwf-col a:hover, .hwf-up:hover { opacity: 1; background-size: 100% 1px; }
 .hwf-col a:focus-visible, .hwf-up:focus-visible { outline: 1px solid currentColor; outline-offset: 3px; opacity: 1; }
@@ -234,7 +235,7 @@ export default function HalftoneWordmarkFooter({
       const rect = root.getBoundingClientRect()
       w = Math.max(1, Math.round(rect.width))
       h = Math.max(1, Math.round(rect.height))
-      dpr = Math.min(window.devicePixelRatio || 1, 2)
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5)
       canvas.width = Math.round(w * dpr)
       canvas.height = Math.round(h * dpr)
 
@@ -309,6 +310,9 @@ export default function HalftoneWordmarkFooter({
       const ringAge = ring.t < 0 ? 1e9 : now - ring.t
       const ringR = ringAge * 0.9
       let moving = false
+      const warmed: number[] = []
+      ctx.fillStyle = o.colors.ink
+      ctx.beginPath()
       for (let i = 0; i < count; i++) {
         const j = i * 7
         let x = dots[j]
@@ -347,15 +351,28 @@ export default function HalftoneWordmarkFooter({
           dots[j + 3] = vy
         }
         const k = hwfWarmth(x, y, hx, hy, 28)
+        if (k > 0.02) {
+          warmed.push(x, y, dots[j + 6], k)
+        } else {
+          const rad = dots[j + 6]
+          ctx.moveTo(x + rad, y)
+          ctx.arc(x, y, rad, 0, 6.2832)
+        }
+      }
+      ctx.fill()
+
+      for (let wIdx = 0; wIdx < warmed.length; wIdx += 4) {
+        const x = warmed[wIdx]
+        const y = warmed[wIdx + 1]
+        const rad = warmed[wIdx + 2]
+        const k = warmed[wIdx + 3]
         ctx.fillStyle =
-          k > 0.02
-            ? "rgb(" +
-              Math.round(ink[0] + (warm[0] - ink[0]) * k) + "," +
-              Math.round(ink[1] + (warm[1] - ink[1]) * k) + "," +
-              Math.round(ink[2] + (warm[2] - ink[2]) * k) + ")"
-            : o.colors.ink
+          "rgb(" +
+          Math.round(ink[0] + (warm[0] - ink[0]) * k) + "," +
+          Math.round(ink[1] + (warm[1] - ink[1]) * k) + "," +
+          Math.round(ink[2] + (warm[2] - ink[2]) * k) + ")"
         ctx.beginPath()
-        ctx.arc(x, y, dots[j + 6], 0, 6.2832)
+        ctx.arc(x, y, rad, 0, 6.2832)
         ctx.fill()
       }
 
@@ -381,6 +398,7 @@ export default function HalftoneWordmarkFooter({
       if (awake) raf = requestAnimationFrame(loop)
     }
     const wake = () => {
+      if (reduced) return
       awake = true
       if (!raf && visible) raf = requestAnimationFrame(loop)
     }

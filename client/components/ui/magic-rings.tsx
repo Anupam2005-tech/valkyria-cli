@@ -525,7 +525,7 @@ const MagicRings = ({
     clickBurst,
     intro,
     light,
-    maxRatio: clamp(maxDevicePixelRatio, 0.5, 3)
+    maxRatio: clamp(maxDevicePixelRatio, 0.5, 1.5)
   };
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -633,7 +633,7 @@ const MagicRings = ({
     const resize = () => {
       const s = settingsRef.current;
       const rect = container.getBoundingClientRect();
-      const ratio = Math.min(window.devicePixelRatio || 1, s.maxRatio);
+      const ratio = Math.min(window.devicePixelRatio || 1, s.maxRatio, 1.5);
       const width = Math.max(1, Math.round(rect.width * ratio));
       const height = Math.max(1, Math.round(rect.height * ratio));
       if (canvas.width !== width || canvas.height !== height) {
@@ -885,7 +885,7 @@ const MagicRings = ({
       for (let index = bursts.length - 1; index >= 0; index--) {
         if (clock - bursts[index].start > BURST_LIFE) bursts.splice(index, 1);
       }
-      if (introLive && time > (s.ringCount + 2) * STAGGER + CYCLE) introLive = false;
+      if (reduced || (introLive && time > (s.ringCount + 2) * STAGGER + CYCLE)) introLive = false;
 
       render();
 

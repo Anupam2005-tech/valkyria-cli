@@ -56,18 +56,41 @@ export function HowItWorksSection() {
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const onScroll = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setManifestoProgress(1);
+      return;
+    }
+
+    let rafId = 0;
+    let lastVal = -1;
+
+    const measure = () => {
+      rafId = 0;
       const sec = sectionRef.current;
       if (!sec) return;
       const rect = sec.getBoundingClientRect();
       const vh = window.innerHeight;
       const manifesto = Math.max(0, Math.min(1, (vh * 0.85 - rect.top) / (vh * 0.55)));
-      setManifestoProgress(manifesto);
+      if (Math.abs(manifesto - lastVal) > 0.015 || manifesto === 0 || manifesto === 1) {
+        if (manifesto !== lastVal) {
+          lastVal = manifesto;
+          setManifestoProgress(manifesto);
+        }
+      }
     };
 
-    onScroll();
+    const onScroll = () => {
+      if (!rafId) {
+        rafId = requestAnimationFrame(measure);
+      }
+    };
+
+    measure();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   const manifestoWords =
@@ -178,7 +201,7 @@ export function HowItWorksSection() {
                   <span className="type-label text-[#FFC929] tabular-nums">
                     Step {current.num} · {current.title}
                   </span>
-                  <span className="font-mono text-xs text-[#6F747A]">
+                  <span className="font-mono text-xs text-[#9499A0]">
                     Live transcript
                   </span>
                 </div>

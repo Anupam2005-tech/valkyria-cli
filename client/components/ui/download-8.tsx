@@ -90,12 +90,12 @@ export default function Download8() {
             <span className="select-none text-[#FFC929]">$</span>
             <code className="whitespace-nowrap">{selectedPm.command}</code>
           </div>
-          <span className="hidden sm:inline font-mono text-[11px] text-[#6F747A]">
+          <span className="hidden sm:inline font-mono text-[11px] text-[#9499A0]">
             {selectedPm.label}
           </span>
         </div>
 
-        <p className="mt-2.5 font-mono text-xs text-[#6F747A]">
+        <p className="mt-2.5 font-mono text-xs text-[#9499A0]">
           {selectedPm.note}
         </p>
 
@@ -107,7 +107,7 @@ export default function Download8() {
               className="flex flex-col gap-1.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex items-center gap-3 font-mono text-xs sm:text-sm">
-                <span className="text-[#6F747A] tabular-nums">
+                <span className="text-[#9499A0] tabular-nums">
                   0{idx + 1}
                 </span>
                 <span className="text-[#FFC929]">{step.cmd}</span>
@@ -121,7 +121,7 @@ export default function Download8() {
 
         {/* Bottom meta + manual link */}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 pt-2">
-          <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-[#6F747A]">
+          <div className="flex flex-wrap items-center gap-3 font-mono text-xs text-[#9499A0]">
             <span>Linux</span>
             <span>·</span>
             <span>macOS</span>

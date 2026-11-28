@@ -38,26 +38,37 @@ export function DotGrid({ dimmed = false }: DotGridProps) {
       const radius = 1;
       const baseAlpha = dimmed ? 0.06 : 0.11;
       const highlightRadius = 130;
+      const highlightR2 = highlightRadius * highlightRadius;
+      const canHighlight = !dimmed && !reduced && mouseX > -1000;
+
+      // Batch all base dots into a single path/fill to minimize main-thread draw calls
+      ctx.fillStyle = `rgba(242, 244, 241, ${baseAlpha})`;
+      ctx.beginPath();
+      const highlighted: Array<[number, number, number]> = [];
 
       for (let x = gap / 2; x < w; x += gap) {
         for (let y = gap / 2; y < h; y += gap) {
-          const dx = x - mouseX;
-          const dy = y - mouseY;
-          const dist = Math.hypot(dx, dy);
-
-          if (!dimmed && !reduced && dist < highlightRadius) {
-            const t = 1 - dist / highlightRadius;
-            ctx.fillStyle = `rgba(255, 201, 41, ${0.14 + t * 0.45})`;
-            ctx.beginPath();
-            ctx.arc(x, y, radius + t * 0.8, 0, Math.PI * 2);
-            ctx.fill();
-          } else {
-            ctx.fillStyle = `rgba(242, 244, 241, ${baseAlpha})`;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fill();
+          if (canHighlight) {
+            const dx = x - mouseX;
+            const dy = y - mouseY;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < highlightR2) {
+              highlighted.push([x, y, 1 - Math.sqrt(d2) / highlightRadius]);
+              continue;
+            }
           }
+          ctx.moveTo(x + radius, y);
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
         }
+      }
+      ctx.fill();
+
+      for (let i = 0; i < highlighted.length; i++) {
+        const [x, y, t] = highlighted[i];
+        ctx.fillStyle = `rgba(255, 201, 41, ${0.14 + t * 0.45})`;
+        ctx.beginPath();
+        ctx.arc(x, y, radius + t * 0.8, 0, Math.PI * 2);
+        ctx.fill();
       }
     };
 

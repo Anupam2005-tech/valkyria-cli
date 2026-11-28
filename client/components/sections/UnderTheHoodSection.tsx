@@ -111,7 +111,7 @@ export function UnderTheHoodSection() {
                       />
                     ))}
                   </div>
-                  <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-[#6F747A]">
+                  <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] text-[#9499A0]">
                     {CONTEXT_BUDGET_SEGMENTS.map((seg) => (
                       <span
                         key={seg.label}

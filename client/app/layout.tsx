@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
+import { Montserrat } from "next/font/google";
 import React from "react";
 import "./globals.css";
-import { FAQ_ITEMS } from "@/lib/constants";
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-montserrat",
+  display: "swap",
+});
 
 const SITE_URL = "https://valkyrie-cli.vercel.app";
 
@@ -33,9 +40,6 @@ export const metadata: Metadata = {
   authors: [{ name: "Valkyrie" }],
   creator: "Valkyrie",
   publisher: "Valkyrie",
-  alternates: {
-    canonical: "/",
-  },
   robots: {
     index: true,
     follow: true,
@@ -76,7 +80,7 @@ export default function RootLayout({
     alternateName: "vk",
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Linux, macOS, Windows",
-    softwareVersion: "0.1.0",
+    softwareVersion: "0.1.2",
     url: SITE_URL,
     description:
       "Terminal-native AI coding agent that plans, edits local files with approval gates, searches the web via DuckDuckGo, and indexes codebases in Pinecone using user-supplied Groq, Gemini, and NVIDIA API keys.",
@@ -106,28 +110,9 @@ export default function RootLayout({
     },
   };
 
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: FAQ_ITEMS.map((item) => ({
-      "@type": "Question",
-      name: item.q,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: item.a,
-      },
-    })),
-  };
-
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className={`dark ${montserrat.variable}`} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Audiowide&family=Bitcount+Prop+Single:wght@100..900&family=Bitcount+Single:wght@100..900&family=Bruno+Ace+SC&family=Caveat+Brush&family=Comforter+Brush&family=Delius&family=Dongle&family=Funnel+Display:wght@300..800&family=Meddon&family=Monoton&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Mozilla+Headline:wght@200..700&family=Story+Script&family=Varela+Round&family=Zalando+Sans+Expanded:ital,wght@0,200..900;1,200..900&family=Zen+Dots&display=swap"
-          rel="stylesheet"
-        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
@@ -135,10 +120,6 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
         />
       </head>
       <body

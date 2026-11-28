@@ -108,17 +108,22 @@ const BranchedMenu: React.FC<BranchedMenuProps> = ({
   const markerShown = activeSection >= 0 && open.has(activeSection);
 
   useLayoutEffect(() => {
+    let restoreRaf = 0;
     const place = (glide: boolean) => {
       const m = markerRef.current;
       const el = heads.current[activeSection];
       if (!m) return;
       const on = markerShown && el;
       if (!glide) m.style.transition = 'none';
-      if (on) m.style.top = `${el.offsetTop + (el.offsetHeight - MARK) / 2}px`;
+      if (on) {
+        const y = el.offsetTop + (el.offsetHeight - MARK) / 2;
+        m.style.transform = `translateY(${y}px)`;
+      }
       m.toggleAttribute('data-on', Boolean(on));
       if (!glide) {
-        void m.offsetHeight;
-        m.style.transition = '';
+        restoreRaf = requestAnimationFrame(() => {
+          m.style.transition = '';
+        });
       }
     };
     place(true);
@@ -131,7 +136,10 @@ const BranchedMenu: React.FC<BranchedMenuProps> = ({
       place(false);
     });
     if (navRef.current) ro.observe(navRef.current);
-    return () => ro.disconnect();
+    return () => {
+      if (restoreRaf) cancelAnimationFrame(restoreRaf);
+      ro.disconnect();
+    };
   }, [activeSection, markerShown, items, fontSize, rowHeight]);
 
   const select = (value: string, item: BranchedMenuChild | BranchedMenuItem) => {
@@ -179,7 +187,7 @@ const BranchedMenu: React.FC<BranchedMenuProps> = ({
     >
       <span
         ref={markerRef}
-        className="absolute -top-px left-0 z-[1] h-4 w-0.5 rounded-[1px] opacity-0 [background:var(--bm-accent)] [transition:top_220ms_cubic-bezier(0.23,1,0.32,1),opacity_150ms_ease] data-[on]:opacity-100 motion-reduce:[transition:opacity_150ms_ease]"
+        className="absolute top-0 left-0 z-[1] h-4 w-0.5 rounded-[1px] opacity-0 [background:var(--bm-accent)] will-change-transform [transition:transform_220ms_cubic-bezier(0.23,1,0.32,1),opacity_150ms_ease] data-[on]:opacity-100 motion-reduce:[transition:opacity_150ms_ease]"
         aria-hidden="true"
       />
       {items.map((item, i) => {

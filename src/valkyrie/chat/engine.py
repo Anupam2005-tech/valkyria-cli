@@ -90,8 +90,13 @@ def build_system_prompt(
         "- write_file / edit_file / delete_file / read_file / list_directory / search_files",
         f"  (Workspace root: {ws_hint}; user Downloads folder: {home_downloads})",
         "- web_search (live DuckDuckGo search via LangChain)",
+        "- run_command (execute shell commands in the workspace; requires user approval)",
+        "- pkg_install (install/uninstall/list packages via pip, npm, cargo, brew, apt, etc.)",
         "When the user asks you to create, read, update, change, or delete a file or search "
         "the web, call the appropriate tool(s) immediately and report the exact paths/URLs.",
+        "When the user asks you to install software, download a package, run a command, "
+        "execute tests, build a project, or perform any terminal operation, call run_command "
+        "or pkg_install as appropriate. Always show the command before it runs.",
     ]
     profile_parts: list[str] = []
     if config.profile.name:
@@ -145,6 +150,7 @@ class ChatEngine:
         self.toolset = AgentToolset(
             workspace_root=self.workspace_root,
             confirm_fn=self._confirm_tool_action,
+            auto_approve=self.auto_approve_tools,
         )
         self.messages: list[ChatMessage] = (
             list(initial_messages)
@@ -838,6 +844,8 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
             engine.auto_approve_tools = args[0].lower() == "on"
         else:
             engine.auto_approve_tools = not engine.auto_approve_tools
+        # Propagate to run_command / pkg_install tools
+        engine.toolset.set_auto_approve(engine.auto_approve_tools)
         state = (
             "ON (no confirmation prompts)"
             if engine.auto_approve_tools
@@ -984,6 +992,92 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
     )
     reg.register(
         SlashCommand("/exit", "/exit", "Exit chat", cmd_exit, aliases=("/q", "/quit"))
+    )
+
+    # ── /run  ────────────────────────────────────────────────────────────────
+
+    def cmd_run(args: list[str]) -> bool:
+        """Execute a raw shell command inside the workspace."""
+        from valkyrie.tools.run_command import run_shell_command
+
+        if not args:
+            print_info("Usage: /run <shell command>")
+            return True
+        cmd = " ".join(args)
+        try:
+            output = run_shell_command(
+                cmd,
+                workspace_root=engine.workspace_root,
+                confirm_fn=engine._confirm_tool_action,
+                auto_approve=engine.auto_approve_tools,
+            )
+            console.print(output)
+        except (PermissionError, RuntimeError, ValueError) as exc:
+            render_tool_card(tool="run", status="error", target=cmd, summary=str(exc))
+        return True
+
+    reg.register(
+        SlashCommand(
+            "/run",
+            "/run <command>",
+            "Execute a shell command inside the workspace",
+            cmd_run,
+        )
+    )
+
+    # ── /pkg  ────────────────────────────────────────────────────────────────
+
+    def cmd_pkg(args: list[str]) -> bool:
+        """Install / manage packages via pip, npm, brew, cargo, apt, etc."""
+        from valkyrie.tools.pkg_manager import _KNOWN_MANAGERS, run_pkg_command
+
+        # /pkg [manager] [action] [packages…]
+        # /pkg install <name>          → auto-detect manager
+        # /pkg pip install requests
+        if not args:
+            print_info(
+                "Usage: /pkg [manager] <action> [packages…]\n"
+                f"Managers: {', '.join(sorted(_KNOWN_MANAGERS))}\n"
+                "Example:  /pkg pip install httpx\n"
+                "          /pkg npm install lodash\n"
+                "          /pkg install requests  (auto-detects pip)"
+            )
+            return True
+
+        # If first arg is a known manager, use it; otherwise default to pip
+        if args[0].lower() in _KNOWN_MANAGERS:
+            manager = args[0].lower()
+            rest = args[1:]
+        else:
+            manager = "pip"
+            rest = args
+
+        if not rest:
+            print_info(f"Usage: /pkg {manager} <action> [packages…]")
+            return True
+
+        action = rest[0].lower()
+        packages = rest[1:]
+
+        output = run_pkg_command(
+            manager,
+            action,
+            packages,
+            workspace_root=engine.workspace_root,
+            confirm_fn=engine._confirm_tool_action,
+            auto_approve=engine.auto_approve_tools,
+        )
+        if output:
+            console.print(output)
+        return True
+
+    reg.register(
+        SlashCommand(
+            "/pkg",
+            "/pkg [manager] <action> [packages…]",
+            "Install, uninstall, or list packages (pip, npm, brew, cargo, apt …)",
+            cmd_pkg,
+        )
     )
 
     # Upcoming Beta capabilities — hidden from normal help, non-executable

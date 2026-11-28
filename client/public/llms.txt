@@ -1,8 +1,9 @@
-# Valkyrie — Terminal-Native AI Coding Agent
+# Valkyrie
 
-> Valkyrie (`valkyrie` / `vk`) is a terminal-first AI agent that plans, edits files, searches the web with DuckDuckGo, and indexes codebases in Pinecone using your own Groq, Google Gemini, and NVIDIA API keys.
+> Valkyrie (`valkyrie` / `vk`) is a terminal-first AI coding agent that plans, edits files, searches the web with DuckDuckGo, and indexes codebases in Pinecone using your own Groq, Google Gemini, and NVIDIA API keys under explicit approval.
 
 ## Core Capabilities
+
 - **Multi-Provider Streaming**: Switch between Groq, Google Gemini, and NVIDIA models anytime with `/model` or `/m`.
 - **Bring Your Own Keys (BYOK)**: API keys are encrypted client-side with Argon2id + AES-256-GCM before syncing ciphertext through Firebase.
 - **Pinecone Cloud RAG**: Codebase chunks and embeddings are stored exclusively in your Pinecone cloud index (never in a local vector DB).
@@ -10,15 +11,17 @@
 - **Real Session Persistence**: Conversations are stored in local SQLite (`~/.valkyrie/data/sessions.db`) with `/new`, `/session`, `/compact`, and `/account` commands.
 
 ## Installation
+
 ```bash
 pipx install valkyrie
 # or
 uv tool install valkyrie
 ```
 
-## Key Pages
-- Home: https://valkyrie-cli.vercel.app/
-- Documentation & Command Reference: https://valkyrie-cli.vercel.app/docs
-- Privacy Policy: https://valkyrie-cli.vercel.app/privacy
-- Terms & Conditions: https://valkyrie-cli.vercel.app/terms
+## Key Pages & Resources
 
+- [Homepage](https://valkyrie-cli.vercel.app/): Product overview, workflow, architecture, and FAQ
+- [Documentation](https://valkyrie-cli.vercel.app/docs): Full command reference, setup, and Pinecone RAG guide
+- [Terms & Conditions](https://valkyrie-cli.vercel.app/terms): Usage terms and BYOK responsibilities
+- [Privacy Policy](https://valkyrie-cli.vercel.app/privacy): Local storage, encryption, and third-party processors
+- [GitHub Repository](https://github.com/Anupam2005-tech/valkyria-cli): Source code, releases, and issue tracker

@@ -438,7 +438,7 @@ export default function Orb({
       opacity: u('opacity')
     };
 
-    const maxDpr = dpr ?? Math.min(window.devicePixelRatio || 1, 2);
+    const maxDpr = dpr ?? Math.min(window.devicePixelRatio || 1, 1.5);
 
     function resize() {
       if (!container || !gl) return;
@@ -498,9 +498,15 @@ export default function Orb({
     container.addEventListener('pointerdown', onDown);
 
     let raf = 0;
+    let visible = true;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
 
     function render(now: number) {
-      raf = requestAnimationFrame(render);
+      raf = 0;
+      if (!visible) return;
+      if (!reduced) {
+        raf = requestAnimationFrame(render);
+      }
       if (!gl) return;
       const dt = Math.min((now - lastTime) * 0.001, 0.05);
       lastTime = now;
@@ -583,10 +589,23 @@ export default function Orb({
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
 
+    const io = new IntersectionObserver((entries) => {
+      visible = entries.some((e) => e.isIntersecting);
+      if (visible && !raf) {
+        lastTime = performance.now();
+        raf = requestAnimationFrame(render);
+      } else if (!visible && raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    });
+    io.observe(container);
+
     raf = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(raf);
+      io.disconnect();
       ro.disconnect();
       container.removeEventListener('pointermove', onMove);
       container.removeEventListener('pointerleave', onLeave);

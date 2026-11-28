@@ -11,6 +11,8 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from valkyrie.core.cards import render_tool_card
 from valkyrie.tools.local_fs import ConfirmCallback, make_local_tools
+from valkyrie.tools.pkg_manager import make_pkg_tool
+from valkyrie.tools.run_command import make_run_command_tool
 from valkyrie.tools.web_search import make_web_search_tool
 
 if TYPE_CHECKING:
@@ -41,14 +43,41 @@ class AgentToolset:
         *,
         workspace_root: Path,
         confirm_fn: ConfirmCallback | None = None,
+        auto_approve: bool = False,
     ) -> None:
         self.workspace_root = workspace_root
         self.confirm_fn = confirm_fn
+        self.auto_approve = auto_approve
         self.tools: list[BaseTool] = [
             *make_local_tools(workspace_root, confirm_fn=confirm_fn),
             make_web_search_tool(),
+            make_run_command_tool(
+                workspace_root,
+                confirm_fn=confirm_fn,
+                auto_approve=auto_approve,
+            ),
+            make_pkg_tool(
+                workspace_root,
+                confirm_fn=confirm_fn,
+                auto_approve=auto_approve,
+            ),
         ]
         self._by_name: dict[str, BaseTool] = {t.name: t for t in self.tools}
+
+    def set_auto_approve(self, auto_approve: bool) -> None:
+        """Propagate auto-approve toggle to execution tools at runtime."""
+        self.auto_approve = auto_approve
+        # Rebuild run/pkg tools with the updated flag
+        from valkyrie.tools.pkg_manager import make_pkg_tool as _pkg
+        from valkyrie.tools.run_command import make_run_command_tool as _run
+
+        new_run = _run(self.workspace_root, confirm_fn=self.confirm_fn, auto_approve=auto_approve)
+        new_pkg = _pkg(self.workspace_root, confirm_fn=self.confirm_fn, auto_approve=auto_approve)
+        for t in (new_run, new_pkg):
+            self._by_name[t.name] = t
+        # Sync back into tools list
+        names = {t.name for t in (new_run, new_pkg)}
+        self.tools = [t for t in self.tools if t.name not in names] + [new_run, new_pkg]
 
     def openai_tools(self) -> list[dict[str, Any]]:
         """Convert LangChain tools to OpenAI-compatible tool definitions (Groq / NVIDIA)."""

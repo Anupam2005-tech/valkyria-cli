@@ -176,7 +176,7 @@ export function TerminalMock() {
               </div>
               <div className="flex items-center justify-between px-2.5 py-1.5 text-xs text-[#A3A7AB]">
                 <span>/pkg</span>
-                <span className="text-[#6F747A]">Manage packages</span>
+                <span className="text-[#9499A0]">Manage packages</span>
               </div>
             </div>
           )}

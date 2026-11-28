@@ -15,8 +15,8 @@ export function HeroSection() {
       aria-labelledby="hero-heading"
       className="relative z-10 flex min-h-[82vh] flex-col justify-between overflow-hidden pt-24 pb-8 px-6 sm:px-8"
     >
-      {/* Interactive GradientASCII hero backdrop */}
-      <div className="pointer-events-none absolute inset-0 z-0 opacity-75">
+      {/* Interactive GradientASCII hero backdrop (capped to 100dvh) */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[100dvh] max-h-screen overflow-hidden opacity-75">
         <GradientASCII
           colors={["#151619", "#34373C", "#FFC929", "#F2F4F1"]}
           shape="horizon"

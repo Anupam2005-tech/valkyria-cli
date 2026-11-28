@@ -762,7 +762,7 @@ const GradientASCII = ({
       const s = settingsRef.current;
       view.width = Math.max(1, container.clientWidth);
       view.height = Math.max(1, container.clientHeight);
-      view.ratio = Math.min(s.dpr || window.devicePixelRatio || 1, 2);
+      view.ratio = Math.min(s.dpr || window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.max(1, Math.round(view.width * view.ratio));
       canvas.height = Math.max(1, Math.round(view.height * view.ratio));
       sizeTarget(
@@ -830,7 +830,8 @@ const GradientASCII = ({
         time += dt * s.speed * 0.5;
         glyphTime += dt * Math.max(s.speed, 0.15);
       }
-      if (introClock < 1) introClock = Math.min(1, introClock + dt / INTRO_SECONDS);
+      if (reduce) introClock = 1;
+      else if (introClock < 1) introClock = Math.min(1, introClock + dt / INTRO_SECONDS);
       grainClock += dt;
       if (!reduce && grainClock > 1 / 24) {
         grainClock = 0;

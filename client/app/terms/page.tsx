@@ -89,7 +89,7 @@ export default function TermsPage() {
                 Terms &{" "}
                 <span className="font-accent-word text-[#FFC929]">Conditions.</span>
               </h1>
-              <p className="mt-3 font-mono text-xs text-[#6F747A]">
+              <p className="mt-3 font-mono text-xs text-[#9499A0]">
                 Last updated: [2026-11-27]
               </p>
               <div className="mt-4 rounded-[12px] border border-[#FFC929]/35 bg-[#FFC929]/10 p-3 text-xs text-[#F2F4F1]">

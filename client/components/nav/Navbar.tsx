@@ -89,7 +89,7 @@ export function Navbar({ solid = false }: NavbarProps) {
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`inline-flex items-center gap-1.5 py-1 text-[13px] font-medium transition-colors ${
+                    className={`inline-flex min-h-[44px] items-center gap-1.5 px-1 py-2 text-[13px] font-medium transition-colors ${
                       isActive
                         ? "text-[#F2F4F1]"
                         : "text-[#F2F4F1]/75 hover:text-[#F2F4F1]"
@@ -118,7 +118,7 @@ export function Navbar({ solid = false }: NavbarProps) {
                 aria-expanded={protocolOpen}
                 aria-haspopup="menu"
                 onClick={() => setProtocolOpen((v) => !v)}
-                className="inline-flex items-center gap-1 py-2 text-[13px] font-medium text-[#F2F4F1]/75 hover:text-[#F2F4F1] transition-colors"
+                className="inline-flex min-h-[44px] items-center gap-1 px-1 py-2 text-[13px] font-medium text-[#F2F4F1]/75 hover:text-[#F2F4F1] transition-colors"
               >
                 <span>Protocol</span>
                 <ChevronDown
@@ -169,7 +169,7 @@ export function Navbar({ solid = false }: NavbarProps) {
               href={GITHUB_REPO_URL}
               target="_blank"
               rel="noreferrer"
-              className="hidden min-[821px]:inline-flex items-center gap-2 rounded-[4px] border border-[rgba(242,244,241,0.16)] bg-[#151619] px-4 py-2 text-[13px] font-medium text-[#F2F4F1] hover:border-[rgba(242,244,241,0.32)] hover:bg-[#1C1D20] transition-colors min-h-[38px]"
+              className="hidden min-[821px]:inline-flex items-center gap-2 rounded-[4px] border border-[rgba(242,244,241,0.16)] bg-[#151619] px-4 py-2 text-[13px] font-medium text-[#F2F4F1] hover:border-[rgba(242,244,241,0.32)] hover:bg-[#1C1D20] transition-colors min-h-[44px]"
             >
               <Star
                 className="h-3.5 w-3.5 text-[#FFC929]"
@@ -236,7 +236,7 @@ export function Navbar({ solid = false }: NavbarProps) {
                     className="flex items-center justify-between py-4 font-display text-2xl font-medium tracking-tight text-[#F2F4F1] hover:text-[#FFC929] transition-colors"
                   >
                     <span>{item.label}</span>
-                    <ArrowRight className="h-4 w-4 text-[#6F747A]" strokeWidth={1.5} />
+                    <ArrowRight className="h-4 w-4 text-[#9499A0]" strokeWidth={1.5} />
                   </Link>
                 </motion.li>
               ))}

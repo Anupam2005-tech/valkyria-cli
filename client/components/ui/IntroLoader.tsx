@@ -171,7 +171,7 @@ export function IntroLoader() {
                   transition={{ duration: 0.3, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
                 />
               </svg>
-              <span className="type-label absolute bottom-5 right-5 text-[#6F747A]">
+              <span className="type-label absolute bottom-5 right-5 text-[#9499A0]">
                 EST. 2026
               </span>
             </div>
