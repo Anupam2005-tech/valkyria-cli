@@ -12,7 +12,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 # ── Editorial terminal palette ──────────────────────────────────────────────
-VALKYRIE_THEME = Theme(
+VALKYRIA_THEME = Theme(
     {
         # Core hierarchy
         "title": "bold bright_white",
@@ -46,7 +46,7 @@ VALKYRIE_THEME = Theme(
 )
 
 # ── Shared console instance ────────────────────────────────────────────────
-console = Console(theme=VALKYRIE_THEME, highlight=False)
+console = Console(theme=VALKYRIA_THEME, highlight=False)
 
 
 def render_meter(ratio: float, *, width: int = 12) -> str:
@@ -63,13 +63,13 @@ def render_meter(ratio: float, *, width: int = 12) -> str:
 
 
 def print_banner() -> None:
-    """Print the Valkyrie editorial masthead, adaptive to terminal width."""
-    from valkyrie import __version__
+    """Print the Valkyria editorial masthead, adaptive to terminal width."""
+    from valkyria import __version__
 
     console.print()
     header = Text()
     header.append("◆ ", style="bold bright_cyan")
-    header.append("VALKYRIE", style="bold bright_white")
+    header.append("VALKYRIA", style="bold bright_white")
     header.append(f"  v{__version__}", style="grey62")
     if console.width >= 64:
         header.append("   ·   ", style="grey35")

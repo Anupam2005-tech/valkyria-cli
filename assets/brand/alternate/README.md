@@ -1,4 +1,4 @@
-# Valkyrie alternate logo direction
+# Valkyria alternate logo direction
 
 This is a separate, more minimal direction alongside the shield-and-wings logo family in `../`. It uses a split-spear V and a directional yellow point to suggest precision and choosing a route. The letterforms are uppercase and more typographic. The original family remains untouched.
 

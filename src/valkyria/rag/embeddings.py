@@ -19,13 +19,13 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from dotenv import dotenv_values
 
-from valkyrie.core.config import PineconeConfig
-from valkyrie.core.paths import get_config_dir
-from valkyrie.providers.gemini import GEMINI_API_BASE
-from valkyrie.providers.nvidia import NVIDIA_API_BASE
+from valkyria.core.config import PineconeConfig
+from valkyria.core.paths import get_config_dir
+from valkyria.providers.gemini import GEMINI_API_BASE
+from valkyria.providers.nvidia import NVIDIA_API_BASE
 
 if TYPE_CHECKING:
-    from valkyrie.core.config import ValkyrieConfig
+    from valkyria.core.config import ValkyriaConfig
 
 _TOKEN_RE = re.compile(r"[a-z0-9_]+")
 DEFAULT_LOCAL_DIM = 1024
@@ -80,7 +80,7 @@ def resolve_pinecone_api_key(
 
 
 def resolve_pinecone_config(
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     workspace_root: Path | None = None,
 ) -> PineconeConfig:
     """Resolve Pinecone index/cloud/region with .env overrides."""
@@ -179,7 +179,7 @@ def _embed_pinecone_inference(
 def embed_texts(
     texts: list[str],
     *,
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     api_keys: dict[str, str] | None = None,
     pinecone_api_key: str | None = None,
     input_type: str = "passage",

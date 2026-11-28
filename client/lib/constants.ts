@@ -11,10 +11,10 @@ export const HOW_IT_WORKS_STEPS = [
   {
     num: "01",
     title: "Connect",
-    copy: "Log in from your browser, paste your Groq, Gemini and NVIDIA keys, tell Valkyrie your name and what you do. It remembers.",
-    command: "valkyrie login",
+    copy: "Log in from your browser, paste your Groq, Gemini and NVIDIA keys, tell Valkyria your name and what you do. It remembers.",
+    command: "valkyria login",
     snippet: [
-      "$ valkyrie login",
+      "$ valkyria login",
       "Opened browser sign-in via Firebase...",
       "Signed in as sam@studio.dev",
       "Vault unlocked (AES-256-GCM)",
@@ -51,7 +51,7 @@ export const HOW_IT_WORKS_STEPS = [
   {
     num: "04",
     title: "Build",
-    copy: "Valkyrie executes, checks its own work and saves the session. Use /new for a clean slate or /session to pick up later.",
+    copy: "Valkyria executes, checks its own work and saves the session. Use /new for a clean slate or /session to pick up later.",
     command: "/new · /session",
     snippet: [
       "Running pytest -q...",
@@ -67,32 +67,32 @@ export const COMPARISON_ROWS = [
   {
     feature: "Models",
     typical: "One provider, one lock-in",
-    valkyrie: "Groq, Gemini and NVIDIA, routed per task with automatic fallback",
+    valkyria: "Groq, Gemini and NVIDIA, routed per task with automatic fallback",
   },
   {
     feature: "Your keys",
     typical: "Held on someone else's server",
-    valkyrie: "Yours, encrypted on your machine before they ever sync",
+    valkyria: "Yours, encrypted on your machine before they ever sync",
   },
   {
     feature: "Your files",
     typical: "Pasted in or uploaded wholesale",
-    valkyrie: "Indexed and stored in your Pinecone cloud index; only relevant chunks go out",
+    valkyria: "Indexed and stored in your Pinecone cloud index; only relevant chunks go out",
   },
   {
     feature: "System access",
     typical: "All or nothing",
-    valkyrie: "Tiered permissions, approval prompts, undo",
+    valkyria: "Tiered permissions, approval prompts, undo",
   },
   {
     feature: "Memory",
     typical: "One endless scroll",
-    valkyrie: "Real sessions plus context budgeting: /new, /session",
+    valkyria: "Real sessions plus context budgeting: /new, /session",
   },
   {
     feature: "Workflow",
     typical: "Straight to code",
-    valkyrie: "Plan, approve, then build",
+    valkyria: "Plan, approve, then build",
   },
 ];
 
@@ -177,8 +177,8 @@ export const CONTEXT_BUDGET_SEGMENTS = [
 
 export const FAQ_ITEMS = [
   {
-    q: "Does Valkyrie run offline?",
-    a: "Models are hosted by your providers and RAG vectors live in your Pinecone cloud index, so chatting and RAG search need internet. Your local files and SQLite sessions stay on your machine.",
+    q: "Does Valkyria run offline?",
+    a: "Models are hosted by your providers and RAG vectors live in your Pinecone cloud index, so chatting and RAG search need internet. Your local files and JSON sessions stay on your machine.",
   },
   {
     q: "Where do my API keys live?",
@@ -186,7 +186,7 @@ export const FAQ_ITEMS = [
   },
   {
     q: "Which models can I use?",
-    a: "Groq, Gemini and NVIDIA at launch, with more providers planned. Valkyrie routes per task and falls back automatically.",
+    a: "Groq, Gemini and NVIDIA at launch, with more providers planned. Valkyria routes per task and falls back automatically.",
   },
   {
     q: "Can it change files or run commands on my laptop?",
@@ -194,15 +194,15 @@ export const FAQ_ITEMS = [
   },
   {
     q: "Is my code uploaded anywhere?",
-    a: "Valkyrie chunks your workspace into your own Pinecone index and retrieves only relevant context for the model provider you chose, per request.",
+    a: "Valkyria chunks your workspace into your own Pinecone index and retrieves only relevant context for the model provider you chose, per request.",
   },
   {
     q: "How much does it cost?",
-    a: "Valkyrie is free and open-source. You bring your own API keys and pay providers directly.",
+    a: "Valkyria is free and open-source. You bring your own API keys and pay providers directly.",
   },
   {
     q: "What systems does it run on?",
-    a: "Linux, macOS and Windows. Valkyrie is a Python 3.11+ CLI installed with pipx or uv.",
+    a: "Linux, macOS and Windows. Valkyria is a Python 3.11+ CLI installed with pipx or uv.",
   },
   {
     q: "How do sessions work?",
@@ -239,7 +239,7 @@ export const FOOTER_COLUMNS = [
     heading: "Product",
     links: [
       { label: "How it works", href: "/#how-it-works" },
-      { label: "Why Valkyrie", href: "/#different" },
+      { label: "Why Valkyria", href: "/#different" },
       { label: "Setup", href: "/#setup" },
       { label: "FAQ", href: "/#faq" },
     ],

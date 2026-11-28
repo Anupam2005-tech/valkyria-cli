@@ -4,7 +4,7 @@ Keys CLI commands — manage provider API keys in the encrypted vault.
 
 import click
 
-from valkyrie.core.console import (
+from valkyria.core.console import (
     console,
     print_error,
     print_info,
@@ -12,7 +12,7 @@ from valkyrie.core.console import (
     print_success,
     print_warning,
 )
-from valkyrie.vault.store import SERVICE_KEYS, SUPPORTED_PROVIDERS
+from valkyria.vault.store import SERVICE_KEYS, SUPPORTED_PROVIDERS
 
 
 @click.group()
@@ -25,8 +25,8 @@ def keys() -> None:
 @click.argument("provider", required=False)
 def add(provider: str | None) -> None:
     """Add or update an API key for a provider."""
-    from valkyrie.vault.prompt import prompt_master_password
-    from valkyrie.vault.store import add_key
+    from valkyria.vault.prompt import prompt_master_password
+    from valkyria.vault.store import add_key
 
     console.print()
     print_rule("Add Provider Key")
@@ -82,16 +82,16 @@ def add(provider: str | None) -> None:
 
     # Record model provider in config (skip vector DB entries like pinecone)
     if provider in SUPPORTED_PROVIDERS:
-        from valkyrie.core.config import ProviderConfig, ValkyrieConfig
+        from valkyria.core.config import ProviderConfig, ValkyriaConfig
 
-        config = ValkyrieConfig.load()
+        config = ValkyriaConfig.load()
         config.providers[provider] = ProviderConfig(name=pinfo["name"], enabled=True)
         config.save()
 
     console.print()
     print_success(f"{pinfo['name']} key saved to encrypted vault.")
     if provider in SUPPORTED_PROVIDERS:
-        print_info("Run [bold]valkyrie model refresh[/bold] to discover available models.")
+        print_info("Run [bold]valkyria model refresh[/bold] to discover available models.")
 
     # Offer to sync
     _offer_sync(password)
@@ -102,19 +102,19 @@ def add(provider: str | None) -> None:
 @keys.command(name="list")
 def list_cmd() -> None:
     """List stored provider keys (masked)."""
-    from valkyrie.vault.store import vault_exists
+    from valkyria.vault.store import vault_exists
 
     console.print()
     print_rule("Provider Keys")
     console.print()
 
     if not vault_exists():
-        print_info("No vault found. Run [bold]valkyrie keys add[/bold] to add your first key.")
+        print_info("No vault found. Run [bold]valkyria keys add[/bold] to add your first key.")
         console.print()
         return
 
-    from valkyrie.vault.prompt import verify_and_prompt
-    from valkyrie.vault.store import list_keys
+    from valkyria.vault.prompt import verify_and_prompt
+    from valkyria.vault.store import list_keys
 
     password = verify_and_prompt(action="list your keys")
     if password is None:
@@ -124,7 +124,7 @@ def list_cmd() -> None:
     stored_keys = list_keys(password)
 
     if not stored_keys:
-        print_info("Vault is empty. Run [bold]valkyrie keys add[/bold] to add a key.")
+        print_info("Vault is empty. Run [bold]valkyria keys add[/bold] to add a key.")
     else:
         console.print()
         for provider, data in stored_keys.items():
@@ -139,7 +139,7 @@ def list_cmd() -> None:
 @click.argument("provider")
 def remove(provider: str) -> None:
     """Remove a provider key from the vault."""
-    from valkyrie.vault.store import vault_exists
+    from valkyria.vault.store import vault_exists
 
     provider = provider.lower()
 
@@ -163,8 +163,8 @@ def remove(provider: str) -> None:
         console.print()
         return
 
-    from valkyrie.vault.prompt import verify_and_prompt
-    from valkyrie.vault.store import remove_key
+    from valkyria.vault.prompt import verify_and_prompt
+    from valkyria.vault.store import remove_key
 
     password = verify_and_prompt(action="remove a key")
     if password is None:
@@ -172,9 +172,9 @@ def remove(provider: str) -> None:
         return
 
     if remove_key(password, provider):
-        from valkyrie.core.config import ValkyrieConfig
+        from valkyria.core.config import ValkyriaConfig
 
-        config = ValkyrieConfig.load()
+        config = ValkyriaConfig.load()
         config.providers.pop(provider, None)
         config.save()
         print_success(f"{name} key removed.")
@@ -188,7 +188,7 @@ def remove(provider: str) -> None:
 @keys.command()
 def sync() -> None:
     """Sync the encrypted vault to/from Firebase."""
-    from valkyrie.vault.store import vault_exists
+    from valkyria.vault.store import vault_exists
 
     console.print()
     print_rule("Vault Sync")
@@ -199,7 +199,7 @@ def sync() -> None:
         _pull_from_remote()
         return
 
-    from valkyrie.vault.prompt import verify_and_prompt
+    from valkyria.vault.prompt import verify_and_prompt
 
     password = verify_and_prompt(action="sync your vault")
     if password is None:
@@ -215,7 +215,7 @@ def sync() -> None:
 
 def _offer_sync(password: str) -> None:
     """Offer to sync after a vault change."""
-    from valkyrie.auth.tokens import get_valid_user
+    from valkyria.auth.tokens import get_valid_user
 
     user = get_valid_user()
     if user is None:
@@ -227,9 +227,9 @@ def _offer_sync(password: str) -> None:
 
 def _do_sync(password: str) -> None:
     """Push local vault to Firebase."""
-    from valkyrie.auth.tokens import get_valid_user
-    from valkyrie.vault.store import get_vault_blob
-    from valkyrie.vault.sync import push_vault
+    from valkyria.auth.tokens import get_valid_user
+    from valkyria.vault.store import get_vault_blob
+    from valkyria.vault.sync import push_vault
 
     user = get_valid_user()
     if user is None:
@@ -250,13 +250,13 @@ def _do_sync(password: str) -> None:
 
 def _pull_from_remote() -> None:
     """Pull vault from Firebase when no local vault exists."""
-    from valkyrie.auth.tokens import get_valid_user
-    from valkyrie.vault.store import save_vault_blob
-    from valkyrie.vault.sync import pull_vault
+    from valkyria.auth.tokens import get_valid_user
+    from valkyria.vault.store import save_vault_blob
+    from valkyria.vault.sync import pull_vault
 
     user = get_valid_user()
     if user is None:
-        print_info("Not signed in. Run [bold]valkyrie auth login[/bold] first.")
+        print_info("Not signed in. Run [bold]valkyria auth login[/bold] first.")
         console.print()
         return
 
@@ -265,7 +265,7 @@ def _pull_from_remote() -> None:
 
     if blob is None:
         print_info(
-            "No remote vault found either. Run [bold]valkyrie keys add[/bold] to create one."
+            "No remote vault found either. Run [bold]valkyria keys add[/bold] to create one."
         )
     else:
         save_vault_blob(blob)

@@ -5,13 +5,13 @@ import HalftoneWordmarkFooter, {
   type FooterColumn,
 } from "@/components/ui/halftone-wordmark-footer";
 
-const VALKYRIE_FOOTER_COLUMNS: FooterColumn[] = [
+const VALKYRIA_FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Product",
     links: [
-      { label: "How it works", href: "/#how-it-works" },
-      { label: "Why Valkyrie", href: "/#different" },
-      { label: "Setup", href: "/#setup" },
+      { label: "Capabilities", href: "/#capabilities" },
+      { label: "Flight path", href: "/#flight-path" },
+      { label: "Changelog", href: "/#changelog" },
       { label: "FAQ", href: "/#faq" },
     ],
   },
@@ -36,10 +36,10 @@ export function FooterSection() {
   return (
     <div id="footer" className="relative z-10 w-full border-t border-[rgba(242,244,241,0.08)]">
       <HalftoneWordmarkFooter
-        wordmark="valkyrie"
-        label="Valkyrie"
+        wordmark="valkyria"
+        label="Valkyria"
         meta={`© ${new Date().getFullYear()} · Built with love and passion--Anupam, flown everywhere`}
-        columns={VALKYRIE_FOOTER_COLUMNS}
+        columns={VALKYRIA_FOOTER_COLUMNS}
         palette={{
           background: "#101113",
           ink: "#F2F4F1",
@@ -48,7 +48,8 @@ export function FooterSection() {
         fontFamily='"Bricolage Grotesque", "Geist", system-ui, sans-serif'
         fontWeight={600}
         monoFamily='"Geist Mono", ui-monospace, "SF Mono", monospace'
-        height="500px"
+        height="640px"
+        crop={0.16}
         grain={0.35}
       />
     </div>

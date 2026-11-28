@@ -2,7 +2,7 @@
 Vault store — manage encrypted API keys on disk.
 
 The vault is a JSON dict of provider keys, encrypted as a single AES-256-GCM
-blob and stored at ~/.valkyrie/vault.enc. The master password is never stored;
+blob and stored at ~/.valkyria/vault.enc. The master password is never stored;
 the user must enter it each session to unlock the vault.
 
 Vault plaintext structure:
@@ -22,8 +22,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from valkyrie.core.paths import get_vault_path
-from valkyrie.vault.crypto import decrypt, encrypt
+from valkyria.core.paths import get_vault_path
+from valkyria.vault.crypto import decrypt, encrypt
 
 # ── Supported providers ─────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ def load_vault(password: str) -> dict[str, Any]:
     """
     path = get_vault_path()
     if not path.exists():
-        raise FileNotFoundError("No vault found. Run 'valkyrie keys add' to create one.")
+        raise FileNotFoundError("No vault found. Run 'valkyria keys add' to create one.")
 
     blob = path.read_bytes()
     plaintext = decrypt(blob, password)

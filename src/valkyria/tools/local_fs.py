@@ -13,8 +13,8 @@ from pathlib import Path
 
 from langchain_core.tools import BaseTool, tool
 
-from valkyrie.core.cards import render_tool_card
-from valkyrie.core.workspace import _IGNORED_DIRS
+from valkyria.core.cards import render_tool_card
+from valkyria.core.workspace import _IGNORED_DIRS
 
 ConfirmCallback = Callable[[str, str, str | None], bool]
 
@@ -51,7 +51,7 @@ def resolve_local_path(raw_path: str, workspace_root: Path) -> Path:
     """
     Resolve a local path safely across workspace or home/absolute paths.
 
-    Blocks system OS directories and Valkyrie credential/secret files.
+    Blocks system OS directories and Valkyria credential/secret files.
     """
     cleaned = raw_path.strip()
     if not cleaned:

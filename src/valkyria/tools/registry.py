@@ -1,5 +1,5 @@
 """
-Agent toolset — exports LangChain tools as OpenAI and Gemini function schemas and runs calls.
+Agent toolset — LangChain tools, risk-tier classification, schema export, and execution.
 """
 
 from __future__ import annotations
@@ -9,16 +9,19 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
-from valkyrie.core.cards import render_tool_card
-from valkyrie.tools.local_fs import ConfirmCallback, make_local_tools
-from valkyrie.tools.pkg_manager import make_pkg_tool
-from valkyrie.tools.run_command import make_run_command_tool
-from valkyrie.tools.web_search import make_web_search_tool
+from valkyria.core.cards import render_tool_card
+from valkyria.tools.local_fs import ConfirmCallback, make_local_tools
+from valkyria.tools.pkg_manager import make_pkg_tool
+from valkyria.tools.run_command import make_run_command_tool
+from valkyria.tools.web_search import make_web_search_tool
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from langchain_core.tools import BaseTool
+
+READ_ONLY_TOOLS = frozenset({"read_file", "list_directory", "search_files", "web_search"})
+MUTATING_TOOLS = frozenset({"write_file", "edit_file", "delete_file", "run_command", "pkg_install"})
 
 
 def _sanitize_gemini_schema(node: Any) -> Any:
@@ -36,7 +39,7 @@ def _sanitize_gemini_schema(node: Any) -> Any:
 
 
 class AgentToolset:
-    """Bundles LangChain local CRUD + DuckDuckGo web search tools for streaming agents."""
+    """Bundles LangChain local CRUD, command/pkg, and DuckDuckGo web search tools."""
 
     def __init__(
         self,
@@ -48,39 +51,52 @@ class AgentToolset:
         self.workspace_root = workspace_root
         self.confirm_fn = confirm_fn
         self.auto_approve = auto_approve
+        self._bypass_confirm = False
         self.tools: list[BaseTool] = [
-            *make_local_tools(workspace_root, confirm_fn=confirm_fn),
+            *make_local_tools(workspace_root, confirm_fn=self._dispatch_confirm),
             make_web_search_tool(),
             make_run_command_tool(
                 workspace_root,
-                confirm_fn=confirm_fn,
+                confirm_fn=self._dispatch_confirm,
                 auto_approve=auto_approve,
             ),
             make_pkg_tool(
                 workspace_root,
-                confirm_fn=confirm_fn,
+                confirm_fn=self._dispatch_confirm,
                 auto_approve=auto_approve,
             ),
         ]
         self._by_name: dict[str, BaseTool] = {t.name: t for t in self.tools}
 
+    def _dispatch_confirm(self, action: str, target: str, preview: str | None) -> bool:
+        """Delegate confirmation unless bypassed by the LangGraph safety gate."""
+        if self._bypass_confirm or self.auto_approve or self.confirm_fn is None:
+            return True
+        return self.confirm_fn(action, target, preview)
+
     def set_auto_approve(self, auto_approve: bool) -> None:
         """Propagate auto-approve toggle to execution tools at runtime."""
         self.auto_approve = auto_approve
-        # Rebuild run/pkg tools with the updated flag
-        from valkyrie.tools.pkg_manager import make_pkg_tool as _pkg
-        from valkyrie.tools.run_command import make_run_command_tool as _run
+        from valkyria.tools.pkg_manager import make_pkg_tool as _pkg
+        from valkyria.tools.run_command import make_run_command_tool as _run
 
-        new_run = _run(self.workspace_root, confirm_fn=self.confirm_fn, auto_approve=auto_approve)
-        new_pkg = _pkg(self.workspace_root, confirm_fn=self.confirm_fn, auto_approve=auto_approve)
+        new_run = _run(
+            self.workspace_root,
+            confirm_fn=self._dispatch_confirm,
+            auto_approve=auto_approve,
+        )
+        new_pkg = _pkg(
+            self.workspace_root,
+            confirm_fn=self._dispatch_confirm,
+            auto_approve=auto_approve,
+        )
         for t in (new_run, new_pkg):
             self._by_name[t.name] = t
-        # Sync back into tools list
         names = {t.name for t in (new_run, new_pkg)}
         self.tools = [t for t in self.tools if t.name not in names] + [new_run, new_pkg]
 
     def openai_tools(self) -> list[dict[str, Any]]:
-        """Convert LangChain tools to OpenAI-compatible tool definitions (Groq / NVIDIA)."""
+        """Convert LangChain tools to OpenAI-compatible tool definitions."""
         return [convert_to_openai_tool(t) for t in self.tools]
 
     def gemini_declarations(self) -> list[dict[str, Any]]:
@@ -97,6 +113,15 @@ class AgentToolset:
                 }
             )
         return declarations
+
+    def execute_preapproved(self, name: str, raw_args: dict[str, Any] | str) -> tuple[bool, str]:
+        """Execute a tool whose approval was already granted by the LangGraph safety gate."""
+        prev = self._bypass_confirm
+        self._bypass_confirm = True
+        try:
+            return self.execute(name, raw_args)
+        finally:
+            self._bypass_confirm = prev
 
     def execute(self, name: str, raw_args: dict[str, Any] | str) -> tuple[bool, str]:
         """Execute a registered LangChain tool safely and return (ok, output)."""
@@ -126,4 +151,3 @@ class AgentToolset:
             target_label = str(parsed_args.get("path") or parsed_args.get("query") or name)
             render_tool_card(tool=name, status="error", target=target_label, summary=err)
             return False, f"Error running {name}: {err}"
-

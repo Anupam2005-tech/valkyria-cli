@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import click
 
-from valkyrie.core.console import console, print_error, print_info, print_warning
-from valkyrie.vault.store import vault_exists
+from valkyria.core.console import console, print_error, print_info, print_warning
+from valkyria.vault.store import vault_exists
 
 
 def prompt_master_password(*, confirm_new: bool = True) -> str | None:
@@ -57,7 +57,7 @@ def verify_and_prompt(*, action: str = "access your keys") -> str | None:
     """
     from cryptography.exceptions import InvalidTag
 
-    from valkyrie.vault.store import load_vault
+    from valkyria.vault.store import load_vault
 
     password = click.prompt(
         "  Master password",

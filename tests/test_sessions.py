@@ -1,46 +1,76 @@
-"""Tests for Phase 7 session persistence, checkpoints, ChatEngine sync, and CLI."""
+"""Tests for JSON session persistence, LangGraph checkpoints, ChatEngine sync, and CLI."""
 
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from typing import TYPE_CHECKING, Any, TypedDict
+from unittest.mock import patch
 
 from click.testing import CliRunner
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
+from pydantic import Field
 
-from valkyrie.chat.engine import ChatEngine, _handle_slash_command
-from valkyrie.chat.messages import ChatMessage, MessageRole, TokenUsage
-from valkyrie.cli.main import cli
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.providers.registry import ModelRegistry
-from valkyrie.sessions.store import SessionStore
+from valkyria.chat.engine import ChatEngine, _handle_slash_command
+from valkyria.chat.messages import ChatMessage, MessageRole, TokenUsage
+from valkyria.cli.main import cli
+from valkyria.core.config import ValkyriaConfig
+from valkyria.providers.registry import ModelRegistry
+from valkyria.sessions.checkpointer import JsonFileSaver
+from valkyria.sessions.store import SessionStore
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
     from pathlib import Path
 
 
-class _FakeStreamResponse:
-    def __init__(self, lines: list[str]) -> None:
-        self._lines = lines
-        self.status_code = 200
+class _FakeLangChainModel(BaseChatModel):
+    responses: list[AIMessage] = Field(default_factory=list)
 
-    async def __aenter__(self) -> _FakeStreamResponse:
+    @property
+    def _llm_type(self) -> str:
+        return "fake-sessions"
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> _FakeLangChainModel:
         return self
 
-    async def __aexit__(self, *args: object) -> None:
-        return None
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        msg = self.responses.pop(0)
+        return ChatResult(generations=[ChatGeneration(message=msg)])
 
-    async def aiter_lines(self) -> AsyncIterator[str]:
-        for line in self._lines:
-            yield line
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        msg = self.responses.pop(0)
+        text = msg.text if hasattr(msg, "text") else str(msg.content)
+        chunk = AIMessageChunk(
+            content=text,
+            usage_metadata=msg.usage_metadata,
+        )
+        if run_manager and text:
+            await run_manager.on_llm_new_token(text, chunk=chunk)
+        yield ChatGenerationChunk(message=chunk)
 
 
 class TestSessionStore:
-    """Tests for SQLite SessionStore operations."""
+    """Tests for JSON-backed SessionStore and JsonFileSaver operations (zero SQLite)."""
 
     def test_create_append_resume_and_prefix(self, tmp_path: Path) -> None:
-        store = SessionStore(db_path=tmp_path / "sessions.db")
+        sessions_dir = tmp_path / "sessions"
+        store = SessionStore(sessions_dir=sessions_dir)
         sys_msg = ChatMessage(role=MessageRole.SYSTEM, content="System prompt")
         sess = store.create_session(
             active_model="groq/llama-3.3-70b-versatile",
@@ -77,9 +107,13 @@ class TestSessionStore:
             MessageRole.USER,
             MessageRole.ASSISTANT,
         ]
+        # Verify JSON storage only — no .db or .sqlite files anywhere
+        assert list(sessions_dir.glob("*.json"))
+        assert not list(tmp_path.rglob("*.db"))
+        assert not list(tmp_path.rglob("*.sqlite*"))
 
     def test_fork_rename_search_compact_delete_and_checkpoint(self, tmp_path: Path) -> None:
-        store = SessionStore(db_path=tmp_path / "sessions.db")
+        store = SessionStore(sessions_dir=tmp_path / "sessions")
         sess = store.create_session(
             active_model="gemini/gemini-2.0-flash",
             workspace_root="/tmp/ws",
@@ -92,7 +126,6 @@ class TestSessionStore:
                 sess.id, ChatMessage(role=role, content=f"Turn {i} pinecone notes")
             )
 
-        # Checkpoint
         cp = store.create_checkpoint(sess.id, reason="pre-edit", state={"target": "db.py"})
         assert cp is not None
         latest_cp = store.get_latest_checkpoint(sess.id)
@@ -100,22 +133,18 @@ class TestSessionStore:
         assert latest_cp.reason == "pre-edit"
         assert latest_cp.state["target"] == "db.py"
 
-        # Fork
         forked = store.fork_session(sess.id, title="Alt branch")
         assert forked is not None
         assert forked.id != sess.id
         assert forked.message_count == 6
 
-        # Rename
         assert store.rename_session(forked.id, "Renamed branch") is True
         renamed = store.get_session(forked.id)
         assert renamed is not None and renamed.title == "Renamed branch"
 
-        # Search
         hits = store.search_sessions("pinecone")
         assert len(hits) == 2
 
-        # Compact (system + 6 turns = 7 -> keep last 2 -> system + summary + 2 = 4)
         ok, before_cnt, after_cnt = store.compact_session(
             sess.id, "Discussed pinecone.", keep_last=2
         )
@@ -123,16 +152,48 @@ class TestSessionStore:
         assert before_cnt == 7
         assert after_cnt == 4
 
-        # Delete
         assert store.delete_session(sess.id) is True
         assert store.get_session(sess.id) is None
+
+    def test_json_file_saver_persists_langgraph_interrupt_across_restarts(
+        self, tmp_path: Path
+    ) -> None:
+        cp_dir = tmp_path / "checkpoints"
+
+        class _DemoState(TypedDict):
+            value: int
+            approved: bool
+
+        def _build_demo_graph(saver: JsonFileSaver) -> Any:
+            builder = StateGraph(_DemoState)
+
+            def step_a(state: _DemoState) -> dict[str, Any]:
+                approved = interrupt({"question": "Proceed?"})
+                return {"approved": bool(approved), "value": state.get("value", 0) + 1}
+
+            builder.add_node("step_a", step_a)
+            builder.add_edge(START, "step_a")
+            builder.add_edge("step_a", END)
+            return builder.compile(checkpointer=saver)
+
+        g1 = _build_demo_graph(JsonFileSaver(cp_dir))
+        cfg: Any = {"configurable": {"thread_id": "sess_persist"}}
+        res1 = g1.invoke({"value": 41, "approved": False}, cfg)
+        assert "__interrupt__" in res1
+        assert (cp_dir / "sess_persist.json").exists()
+
+        # Reload with a brand-new JsonFileSaver instance (simulating process restart)
+        g2 = _build_demo_graph(JsonFileSaver(cp_dir))
+        res2 = g2.invoke(Command(resume=True), cfg)
+        assert res2["approved"] is True
+        assert res2["value"] == 42
 
 
 class TestChatEngineSessionSync:
     """Tests for ChatEngine persisting turns and model switches to SessionStore."""
 
     def test_send_turn_persists_to_store(self, tmp_path: Path) -> None:
-        store = SessionStore(db_path=tmp_path / "sessions.db")
+        store = SessionStore(sessions_dir=tmp_path / "sessions")
         sys_msg = ChatMessage(role=MessageRole.SYSTEM, content="sys")
         sess = store.create_session(
             active_model="groq/llama-3.3-70b-versatile",
@@ -141,26 +202,26 @@ class TestChatEngineSessionSync:
         )
 
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={"groq": "gsk_test", "gemini": "AIza_test"},
             initial_model="groq/llama-3.3-70b-versatile",
             session_store=store,
             session_id=sess.id,
             initial_messages=[sys_msg],
+            checkpointer=JsonFileSaver(tmp_path / "checkpoints"),
         )
 
-        sse_lines = [
-            'data: {"choices":[{"delta":{"content":"Saved!"},"finish_reason":"stop"}]}',
-            'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":3}}',
-            "data: [DONE]",
-        ]
-        fake_client = MagicMock()
-        fake_client.__aenter__.return_value = fake_client
-        fake_client.__aexit__.return_value = None
-        fake_client.stream.return_value = _FakeStreamResponse(sse_lines)
+        fake_model = _FakeLangChainModel(
+            responses=[
+                AIMessage(
+                    content="Saved!",
+                    usage_metadata={"input_tokens": 10, "output_tokens": 3, "total_tokens": 13},
+                )
+            ]
+        )
 
-        with patch("valkyrie.chat.clients.httpx.AsyncClient", return_value=fake_client):
+        with patch("valkyria.chat.clients.build_chat_model", return_value=fake_model):
             reply = asyncio.run(engine.send_turn("Hello persistence"))
 
         assert reply == "Saved!"
@@ -175,7 +236,7 @@ class TestChatEngineSessionSync:
         assert updated is not None and updated.active_model == "gemini/gemini-2.0-flash"
 
     def test_slash_new_creates_fresh_session_and_context_window(self, tmp_path: Path) -> None:
-        store = SessionStore(db_path=tmp_path / "sessions.db")
+        store = SessionStore(sessions_dir=tmp_path / "sessions")
         sys_msg = ChatMessage(role=MessageRole.SYSTEM, content="sys")
         first_sess = store.create_session(
             active_model="groq/llama-3.3-70b-versatile",
@@ -184,7 +245,7 @@ class TestChatEngineSessionSync:
             initial_messages=[sys_msg],
         )
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={"groq": "gsk_test"},
             initial_model="groq/llama-3.3-70b-versatile",
@@ -198,6 +259,7 @@ class TestChatEngineSessionSync:
             total_prompt_tokens=120,
             total_completion_tokens=45,
             workspace_root=tmp_path,
+            checkpointer=JsonFileSaver(tmp_path / "checkpoints"),
         )
         store.append_message(
             first_sess.id, ChatMessage(role=MessageRole.USER, content="First question")
@@ -230,16 +292,16 @@ class TestChatEngineSessionSync:
 
 
 class TestSessionCli:
-    """Tests for valkyrie session CLI subcommands."""
+    """Tests for valkyria session CLI subcommands."""
 
     def test_session_cli_lifecycle(self, tmp_path: Path) -> None:
-        db_file = tmp_path / "sessions.db"
+        sessions_dir = tmp_path / "sessions"
         cfg_file = tmp_path / "config.json"
 
         with (
-            patch("valkyrie.core.paths.get_sessions_db_path", return_value=db_file),
-            patch("valkyrie.sessions.store.get_sessions_db_path", return_value=db_file),
-            patch("valkyrie.core.config.get_config_path", return_value=cfg_file),
+            patch("valkyria.core.paths.get_sessions_dir", return_value=sessions_dir),
+            patch("valkyria.sessions.store.get_sessions_dir", return_value=sessions_dir),
+            patch("valkyria.core.config.get_config_path", return_value=cfg_file),
         ):
             runner = CliRunner()
 
@@ -251,7 +313,7 @@ class TestSessionCli:
             assert res_list.exit_code == 0
             assert "Sprint planning" in res_list.output
 
-            store = SessionStore(db_path=db_file)
+            store = SessionStore(sessions_dir=sessions_dir)
             sid = store.list_sessions()[0].id
 
             res_show = runner.invoke(cli, ["session", "show", sid])

@@ -9,7 +9,7 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, tool
 
-from valkyrie.core.cards import render_tool_card
+from valkyria.core.cards import render_tool_card
 
 
 def run_duckduckgo_search(query: str, *, max_results: int = 5) -> list[dict[str, str]]:

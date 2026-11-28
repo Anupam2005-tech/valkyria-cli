@@ -2,7 +2,7 @@
 Workspace detection and scoped file discovery.
 
 Detection order from cwd upward:
-1. Nearest directory containing a `.valkyrie` marker
+1. Nearest directory containing a `.valkyria` marker
 2. Nearest directory containing a `.git` directory/file
 3. Fallback to the launch directory itself
 """
@@ -35,7 +35,7 @@ def detect_workspace_root(start_dir: Path | None = None) -> Path:
     candidates = [start, *start.parents]
 
     for directory in candidates:
-        if (directory / ".valkyrie").exists():
+        if (directory / ".valkyria").exists():
             return directory
 
     for directory in candidates:

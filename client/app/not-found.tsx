@@ -1,73 +1,60 @@
 import React from "react";
-import { Navbar } from "@/components/nav/Navbar";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { SiteHeader } from "@/components/ui/SiteHeader";
 import { FooterSection } from "@/components/sections/FooterSection";
-import { DotGrid } from "@/components/ui/DotGrid";
-import { MagneticButton } from "@/components/ui/MagneticButton";
+import { Logo } from "@/components/ui/Logo";
 
 export default function NotFound() {
   return (
-    <>
-      <DotGrid dimmed />
-      <Navbar solid />
-      <main className="relative z-10 flex min-h-[82vh] flex-col items-center justify-center px-6 pt-28 pb-20 text-center">
-        {/* Shield with a cracked wing */}
-        <svg
-          width="112"
-          height="112"
-          viewBox="0 0 80 80"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-          className="mb-8"
-        >
-          {/* Left wing */}
-          <path
-            d="M27 33L7 21L18 39L7 47L25 48"
-            stroke="#F2F4F1"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {/* Cracked right wing */}
-          <path
-            d="M53 33L71 22L63 34"
-            stroke="#F2F4F1"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M60 40L72 47L55 48"
-            stroke="#FFC929"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="3 3"
-          />
-          {/* Hexagon shield */}
-          <path
-            d="M40 12L58 23V45L40 64L22 45V23L40 12Z"
-            stroke="#F2F4F1"
-            strokeWidth="2.6"
-            strokeLinejoin="round"
-          />
-          <path d="M40 28L45 36L40 46L35 36L40 28Z" fill="#FFC929" />
-        </svg>
+    <div className="min-h-screen bg-[#101113] text-[#F2F4F1] selection:bg-[#FFC929] selection:text-[#101113]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.24]"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(242, 244, 241, 0.14) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
 
-        <span className="type-label text-[#FFC929]">404 · Off course</span>
-        <h1 className="type-display-lg mt-3 text-[#F2F4F1]">
-          Even Valkyries get{" "}
-          <span className="font-accent-word text-[#FFC929]">lost.</span>
+      <SiteHeader sectionLabel="/ 404" />
+
+      <main className="relative z-10 mx-auto flex min-h-[68vh] max-w-[1380px] flex-col items-center justify-center px-5 py-20 text-center sm:px-8">
+        <div className="opacity-85">
+          <Logo size={56} />
+        </div>
+        <span className="mt-6 font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.14em] text-[#FFC929]">
+          Error 404
+        </span>
+        <h1 className="mt-3 text-[clamp(32px,4.5vw,52px)] font-semibold tracking-[-0.03em] text-[#F2F4F1]">
+          Off the flight{" "}
+          <span className="font-[family-name:var(--font-accent)] font-normal italic text-[#FFC929]">
+            path.
+          </span>
         </h1>
-        <p className="type-body-lg mt-4 max-w-[440px] text-[#A3A7AB]">
-          That route does not exist. Head back to base and pick up the flight path.
+        <p className="mt-3 max-w-md text-sm leading-relaxed text-[#9499A0]">
+          That route does not exist. Head back to base or open the documentation.
         </p>
-        <div className="mt-8">
-          <MagneticButton href="/">Back to base</MagneticButton>
+
+        <div className="mt-7 flex items-center gap-3">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 border border-white/20 px-4 py-2 font-[family-name:var(--font-mono)] text-xs font-medium text-[#F2F4F1] transition hover:border-[#FFC929] hover:text-[#FFC929]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to base
+          </Link>
+          <Link
+            href="/docs"
+            className="inline-flex items-center border border-white/20 px-4 py-2 font-[family-name:var(--font-mono)] text-xs font-medium text-[#9499A0] transition hover:border-white/40 hover:text-[#F2F4F1]"
+          >
+            Read docs
+          </Link>
         </div>
       </main>
+
       <FooterSection />
-    </>
+    </div>
   );
 }
-

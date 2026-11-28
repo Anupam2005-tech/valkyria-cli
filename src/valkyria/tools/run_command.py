@@ -1,5 +1,5 @@
 """
-Sandboxed shell command execution tool for Valkyrie.
+Sandboxed shell command execution tool for Valkyria.
 
 Runs arbitrary shell commands inside the workspace directory (or a confirmed
 directory) with a hard timeout, a denylist of dangerous patterns, and a
@@ -22,17 +22,17 @@ Security model
 from __future__ import annotations
 
 import re
-import shlex
 import subprocess
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool, tool
 
-from valkyrie.core.cards import render_tool_card
+from valkyria.core.cards import render_tool_card
 
 if TYPE_CHECKING:
-    from valkyrie.tools.local_fs import ConfirmCallback
+    from pathlib import Path
+
+    from valkyria.tools.local_fs import ConfirmCallback
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -79,7 +79,7 @@ def run_shell_command(
     *,
     workspace_root: Path,
     timeout_seconds: int = _DEFAULT_TIMEOUT,
-    confirm_fn: "ConfirmCallback | None" = None,
+    confirm_fn: ConfirmCallback | None = None,
     auto_approve: bool = False,
     env_passthrough: dict[str, str] | None = None,
 ) -> str:
@@ -150,10 +150,10 @@ def run_shell_command(
             timeout=timeout_seconds,
             env=exec_env,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         msg = f"Command timed out after {timeout_seconds}s: {preview}"
         render_tool_card(tool="run", status="error", target=preview, summary=msg)
-        raise RuntimeError(msg)
+        raise RuntimeError(msg) from exc
 
     combined = ""
     if result.stdout:
@@ -186,7 +186,7 @@ def run_shell_command(
 
 def make_run_command_tool(
     workspace_root: Path,
-    confirm_fn: "ConfirmCallback | None" = None,
+    confirm_fn: ConfirmCallback | None = None,
     auto_approve: bool = False,
 ) -> BaseTool:
     """Return a LangChain ``BaseTool`` that runs shell commands in ``workspace_root``."""

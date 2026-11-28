@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import Completer, Completion
 
-from valkyrie.core.workspace import list_workspace_files
-from valkyrie.providers.registry import PROVIDERS
+from valkyria.core.workspace import list_workspace_files
+from valkyria.providers.registry import PROVIDERS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -19,12 +19,12 @@ if TYPE_CHECKING:
 
     from prompt_toolkit.document import Document
 
-    from valkyrie.providers.registry import ModelRegistry
+    from valkyria.providers.registry import ModelRegistry
 
 
 def is_dev_build(feature_flags: dict[str, bool] | None = None) -> bool:
     """Return True when running in a development build or with dev_mode enabled."""
-    if os.environ.get("VALKYRIE_DEV", "").strip().lower() in ("1", "true", "yes"):
+    if os.environ.get("VALKYRIA_DEV", "").strip().lower() in ("1", "true", "yes"):
         return True
     return bool(feature_flags and feature_flags.get("dev_mode", False))
 
@@ -96,7 +96,7 @@ class SlashCommandRegistry:
         return None
 
 
-class ValkyrieCompleter(Completer):
+class ValkyriaCompleter(Completer):
     """Autocomplete `/` slash commands, `/model` targets/providers, and `@` workspace paths."""
 
     def __init__(

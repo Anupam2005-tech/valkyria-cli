@@ -8,7 +8,7 @@ from rich import box
 from rich.panel import Panel
 from rich.text import Text
 
-from valkyrie.core.console import console
+from valkyria.core.console import console
 
 
 def render_tool_card(

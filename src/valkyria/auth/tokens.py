@@ -1,25 +1,25 @@
 """
 Token management — store, load, refresh Firebase auth tokens.
 
-Tokens are stored in ~/.valkyrie/auth.json. The refresh token is used
+Tokens are stored in ~/.valkyria/auth.json. The refresh token is used
 to obtain new ID tokens when they expire (Firebase ID tokens last 1 hour).
 """
 
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from valkyrie.auth.firebase_config import (
-    FIREBASE_AUTH_BASE,
-    FIREBASE_CONFIG,
-    FIREBASE_TOKEN_BASE,
+from valkyria.auth.firebase_config import (
+    AUTH_API_BASE,
 )
-from valkyrie.core.paths import get_auth_path
+from valkyria.core.paths import get_auth_path
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -86,9 +86,14 @@ def save_auth(user: AuthUser) -> Path:
     """Save auth data to disk. Returns the file path."""
     path = get_auth_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(user.to_dict(), indent=2) + "\n")
-    # Restrict permissions (owner read/write only)
-    path.chmod(0o600)
+    fd, temporary_path = tempfile.mkstemp(prefix=".auth-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as file:
+            file.write(json.dumps(user.to_dict(), indent=2) + "\n")
+        os.replace(temporary_path, path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
     return path
 
 
@@ -113,19 +118,16 @@ def clear_auth() -> None:
 
 def refresh_id_token(user: AuthUser) -> AuthUser | None:
     """
-    Use the refresh token to get a new ID token from Firebase.
+    Refresh a session through the hosted authentication service.
 
     Returns updated AuthUser or None on failure.
     """
-    url = f"{FIREBASE_TOKEN_BASE}/token?key={FIREBASE_CONFIG['apiKey']}"
+    url = f"{AUTH_API_BASE}/refresh"
 
     try:
         response = httpx.post(
             url,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": user.refresh_token,
-            },
+            json={"refreshToken": user.refresh_token},
             timeout=15.0,
         )
         response.raise_for_status()
@@ -158,11 +160,11 @@ def get_valid_user() -> AuthUser | None:
 
 def delete_firebase_account(id_token: str) -> tuple[bool, str]:
     """
-    Permanently delete the Firebase Auth account for the given ID token.
+    Permanently delete the Firebase Auth account through the hosted service.
 
     Returns (success, detail_message).
     """
-    url = f"{FIREBASE_AUTH_BASE}/accounts:delete?key={FIREBASE_CONFIG['apiKey']}"
+    url = f"{AUTH_API_BASE}/delete"
     try:
         response = httpx.post(
             url,
@@ -175,15 +177,15 @@ def delete_firebase_account(id_token: str) -> tuple[bool, str]:
         detail = ""
         try:
             err_data = response.json()
-            detail = str(err_data.get("error", {}).get("message", ""))
+            detail = str(err_data.get("error", ""))
         except ValueError:
             detail = response.text[:200]
 
-        if "CREDENTIAL_TOO_OLD_LOGIN_REQUIRED" in detail:
+        if detail == "CREDENTIAL_TOO_OLD_LOGIN_REQUIRED":
             return (
                 False,
                 "Firebase requires a recent sign-in before deleting an account. "
-                "Run '/account switch' (or 'valkyrie auth switch') to re-authenticate, "
+                "Run '/account switch' (or 'valkyria auth switch') to re-authenticate, "
                 "then retry.",
             )
         return (

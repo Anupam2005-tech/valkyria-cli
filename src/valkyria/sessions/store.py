@@ -1,21 +1,20 @@
 """
-SQLite session storage — durable sessions, auto-saved turns, fork, search, compact, checkpoints.
+JSON session storage — durable sessions, auto-saved turns, fork, search, compact, checkpoints.
 
-Database location: ~/.valkyrie/data/sessions.db (via get_sessions_db_path()).
+Sessions are persisted as JSON files under ~/.valkyria/data/sessions/ (via get_sessions_dir()).
 """
 
 from __future__ import annotations
 
 import json
-import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from valkyrie.chat.messages import ChatMessage, MessageRole, TokenUsage
-from valkyrie.core.paths import get_sessions_db_path
+from valkyria.chat.messages import ChatMessage, MessageRole, TokenUsage
+from valkyria.core.paths import get_sessions_dir
 
 
 def _now_iso() -> str:
@@ -55,82 +54,101 @@ class CheckpointRecord:
     created_at: str
 
 
+def _serialize_message(msg: ChatMessage) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "role": msg.role.value,
+        "content": msg.content,
+        "model": msg.model,
+        "name": msg.name,
+        "tool_call_id": msg.tool_call_id,
+        "tool_calls": msg.tool_calls,
+        "created_at": msg.created_at,
+        "usage": (
+            {
+                "prompt_tokens": msg.usage.prompt_tokens,
+                "completion_tokens": msg.usage.completion_tokens,
+                "estimated": msg.usage.estimated,
+            }
+            if msg.usage is not None
+            else None
+        ),
+    }
+    return payload
+
+
+def _deserialize_message(raw: dict[str, Any]) -> ChatMessage:
+    usage_raw = raw.get("usage")
+    usage: TokenUsage | None = None
+    if isinstance(usage_raw, dict):
+        usage = TokenUsage(
+            prompt_tokens=int(usage_raw.get("prompt_tokens", 0)),
+            completion_tokens=int(usage_raw.get("completion_tokens", 0)),
+            estimated=bool(usage_raw.get("estimated", False)),
+        )
+    return ChatMessage(
+        role=MessageRole(str(raw["role"])),
+        content=str(raw.get("content", "")),
+        model=raw.get("model"),
+        name=raw.get("name"),
+        tool_call_id=raw.get("tool_call_id"),
+        tool_calls=raw.get("tool_calls"),
+        usage=usage,
+        created_at=str(raw.get("created_at") or _now_iso()),
+    )
+
+
 class SessionStore:
-    """SQLite-backed storage for chat sessions, messages, and checkpoints."""
+    """JSON-file-backed storage for chat sessions, messages, and checkpoints."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
-        self.db_path = db_path or get_sessions_db_path()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_schema()
+    def __init__(self, sessions_dir: Path | None = None) -> None:
+        self.sessions_dir = sessions_dir or get_sessions_dir()
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        return conn
+    def _session_path(self, session_id: str) -> Path:
+        return self.sessions_dir / f"{session_id}.json"
 
-    def _init_schema(self) -> None:
-        with self._connect() as conn:
-            conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    workspace_root TEXT NOT NULL,
-                    active_model TEXT NOT NULL,
-                    total_prompt_tokens INTEGER NOT NULL DEFAULT 0,
-                    total_completion_tokens INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    last_checkpoint_id TEXT
-                );
+    def _read_raw(self, path: Path) -> dict[str, Any] | None:
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else None
+        except (OSError, json.JSONDecodeError):
+            return None
 
-                CREATE TABLE IF NOT EXISTS messages (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL,
-                    seq INTEGER NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    model TEXT,
-                    name TEXT,
-                    tool_call_id TEXT,
-                    prompt_tokens INTEGER,
-                    completion_tokens INTEGER,
-                    estimated INTEGER NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_messages_session_seq
-                    ON messages(session_id, seq);
-
-                CREATE TABLE IF NOT EXISTS checkpoints (
-                    id TEXT PRIMARY KEY,
-                    session_id TEXT NOT NULL,
-                    message_seq INTEGER NOT NULL,
-                    active_model TEXT NOT NULL,
-                    reason TEXT NOT NULL,
-                    state_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                );
-                """
-            )
+    def _write_raw(self, session_id: str, data: dict[str, Any]) -> None:
+        target = self._session_path(session_id)
+        tmp = target.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(target)
 
     @staticmethod
-    def _row_to_session(row: sqlite3.Row, message_count: int = 0) -> SessionRecord:
-        return SessionRecord(
-            id=str(row["id"]),
-            title=str(row["title"]),
-            workspace_root=str(row["workspace_root"]),
-            active_model=str(row["active_model"]),
-            total_prompt_tokens=int(row["total_prompt_tokens"]),
-            total_completion_tokens=int(row["total_completion_tokens"]),
-            created_at=str(row["created_at"]),
-            updated_at=str(row["updated_at"]),
-            message_count=message_count,
-            last_checkpoint_id=row["last_checkpoint_id"],
+    def _to_record(data: dict[str, Any]) -> SessionRecord:
+        messages = data.get("messages", [])
+        msg_count = sum(
+            1 for m in messages if isinstance(m, dict) and m.get("role") != MessageRole.SYSTEM.value
         )
+        return SessionRecord(
+            id=str(data["id"]),
+            title=str(data["title"]),
+            workspace_root=str(data["workspace_root"]),
+            active_model=str(data["active_model"]),
+            total_prompt_tokens=int(data.get("total_prompt_tokens", 0)),
+            total_completion_tokens=int(data.get("total_completion_tokens", 0)),
+            created_at=str(data["created_at"]),
+            updated_at=str(data["updated_at"]),
+            message_count=msg_count,
+            last_checkpoint_id=data.get("last_checkpoint_id"),
+        )
+
+    def _iter_all_raw(self) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+        for file_path in self.sessions_dir.glob("*.json"):
+            raw = self._read_raw(file_path)
+            if raw is not None and "id" in raw:
+                records.append(raw)
+        records.sort(key=lambda r: str(r.get("updated_at", "")), reverse=True)
+        return records
 
     def create_session(
         self,
@@ -145,82 +163,35 @@ class SessionStore:
         now = _now_iso()
         ws = workspace_root or str(Path.cwd())
         resolved_title = title or f"Session {now[:10]} {now[11:16]}"
+        msgs = initial_messages or []
 
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO sessions (
-                    id, title, workspace_root, active_model,
-                    total_prompt_tokens, total_completion_tokens,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 0, 0, ?, ?)
-                """,
-                (session_id, resolved_title, ws, active_model, now, now),
-            )
-
-            msgs = initial_messages or []
-            for seq, msg in enumerate(msgs):
-                self._insert_message_row(conn, session_id, seq, msg)
-
-        return SessionRecord(
-            id=session_id,
-            title=resolved_title,
-            workspace_root=ws,
-            active_model=active_model,
-            total_prompt_tokens=0,
-            total_completion_tokens=0,
-            created_at=now,
-            updated_at=now,
-            message_count=sum(
-                1 for m in (initial_messages or []) if m.role != MessageRole.SYSTEM
-            ),
-        )
-
-    def _insert_message_row(
-        self,
-        conn: sqlite3.Connection,
-        session_id: str,
-        seq: int,
-        msg: ChatMessage,
-    ) -> None:
-        conn.execute(
-            """
-            INSERT INTO messages (
-                session_id, seq, role, content, model, name, tool_call_id,
-                prompt_tokens, completion_tokens, estimated, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                session_id,
-                seq,
-                msg.role.value,
-                msg.content,
-                msg.model,
-                msg.name,
-                msg.tool_call_id,
-                msg.usage.prompt_tokens if msg.usage else None,
-                msg.usage.completion_tokens if msg.usage else None,
-                1 if (msg.usage and msg.usage.estimated) else 0,
-                msg.created_at,
-            ),
-        )
+        payload: dict[str, Any] = {
+            "id": session_id,
+            "title": resolved_title,
+            "workspace_root": ws,
+            "active_model": active_model,
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
+            "created_at": now,
+            "updated_at": now,
+            "last_checkpoint_id": None,
+            "messages": [_serialize_message(m) for m in msgs],
+            "checkpoints": [],
+        }
+        self._write_raw(session_id, payload)
+        return self._to_record(payload)
 
     def resolve_session_id(self, id_or_prefix: str) -> str | None:
         """Resolve an exact session ID or unique prefix."""
-        with self._connect() as conn:
-            exact = conn.execute(
-                "SELECT id FROM sessions WHERE id = ?",
-                (id_or_prefix,),
-            ).fetchone()
-            if exact is not None:
-                return str(exact["id"])
+        exact = self._session_path(id_or_prefix)
+        if exact.exists():
+            return id_or_prefix
 
-            matches = conn.execute(
-                "SELECT id FROM sessions WHERE id LIKE ? ORDER BY updated_at DESC",
-                (f"{id_or_prefix}%",),
-            ).fetchall()
-            if len(matches) == 1:
-                return str(matches[0]["id"])
+        matches = [
+            str(r["id"]) for r in self._iter_all_raw() if str(r["id"]).startswith(id_or_prefix)
+        ]
+        if len(matches) == 1:
+            return matches[0]
         return None
 
     def get_session(self, session_id: str) -> SessionRecord | None:
@@ -228,40 +199,17 @@ class SessionStore:
         resolved = self.resolve_session_id(session_id)
         if resolved is None:
             return None
-
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM sessions WHERE id = ?",
-                (resolved,),
-            ).fetchone()
-            if row is None:
-                return None
-            cnt = conn.execute(
-                "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role != 'system'",
-                (resolved,),
-            ).fetchone()[0]
-            return self._row_to_session(row, int(cnt))
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return None
+        return self._to_record(raw)
 
     def get_latest_session(self, workspace_root: str | None = None) -> SessionRecord | None:
         """Return the most recently updated session (scoped to workspace if provided)."""
-        with self._connect() as conn:
-            if workspace_root is not None:
-                row = conn.execute(
-                    "SELECT * FROM sessions WHERE workspace_root = ? "
-                    "ORDER BY updated_at DESC LIMIT 1",
-                    (workspace_root,),
-                ).fetchone()
-            else:
-                row = conn.execute(
-                    "SELECT * FROM sessions ORDER BY updated_at DESC LIMIT 1",
-                ).fetchone()
-            if row is None:
-                return None
-            cnt = conn.execute(
-                "SELECT COUNT(*) FROM messages WHERE session_id = ? AND role != 'system'",
-                (row["id"],),
-            ).fetchone()[0]
-            return self._row_to_session(row, int(cnt))
+        for raw in self._iter_all_raw():
+            if workspace_root is None or raw.get("workspace_root") == workspace_root:
+                return self._to_record(raw)
+        return None
 
     def list_sessions(
         self,
@@ -270,111 +218,73 @@ class SessionStore:
         limit: int = 50,
     ) -> list[SessionRecord]:
         """List sessions ordered by most recently updated."""
-        query = """
-            SELECT s.*, COALESCE(m.cnt, 0) AS msg_count
-            FROM sessions s
-            LEFT JOIN (
-                SELECT session_id, COUNT(*) AS cnt
-                FROM messages
-                WHERE role != 'system'
-                GROUP BY session_id
-            ) m ON m.session_id = s.id
-        """
-        params: list[Any] = []
-        if workspace_root is not None:
-            query += " WHERE s.workspace_root = ?"
-            params.append(workspace_root)
-        query += " ORDER BY s.updated_at DESC LIMIT ?"
-        params.append(limit)
-
-        with self._connect() as conn:
-            rows = conn.execute(query, params).fetchall()
-            return [self._row_to_session(r, int(r["msg_count"])) for r in rows]
+        results: list[SessionRecord] = []
+        for raw in self._iter_all_raw():
+            if workspace_root is not None and raw.get("workspace_root") != workspace_root:
+                continue
+            results.append(self._to_record(raw))
+            if len(results) >= limit:
+                break
+        return results
 
     def load_messages(self, session_id: str) -> list[ChatMessage]:
         """Load ordered messages for a session."""
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM messages WHERE session_id = ? ORDER BY seq ASC, id ASC",
-                (session_id,),
-            ).fetchall()
-
-        messages: list[ChatMessage] = []
-        for r in rows:
-            usage: TokenUsage | None = None
-            if r["prompt_tokens"] is not None or r["completion_tokens"] is not None:
-                usage = TokenUsage(
-                    prompt_tokens=int(r["prompt_tokens"] or 0),
-                    completion_tokens=int(r["completion_tokens"] or 0),
-                    estimated=bool(r["estimated"]),
-                )
-            messages.append(
-                ChatMessage(
-                    role=MessageRole(str(r["role"])),
-                    content=str(r["content"]),
-                    model=r["model"],
-                    name=r["name"],
-                    tool_call_id=r["tool_call_id"],
-                    usage=usage,
-                    created_at=str(r["created_at"]),
-                )
-            )
-        return messages
+        resolved = self.resolve_session_id(session_id) or session_id
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return []
+        return [
+            _deserialize_message(item) for item in raw.get("messages", []) if isinstance(item, dict)
+        ]
 
     def append_message(self, session_id: str, msg: ChatMessage) -> None:
         """Append a message to a session and update token totals + timestamp."""
-        now = _now_iso()
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COALESCE(MAX(seq), -1) AS max_seq FROM messages WHERE session_id = ?",
-                (session_id,),
-            ).fetchone()
-            next_seq = int(row["max_seq"]) + 1
-            self._insert_message_row(conn, session_id, next_seq, msg)
-
-            p_tok = msg.usage.prompt_tokens if msg.usage else 0
-            c_tok = msg.usage.completion_tokens if msg.usage else 0
-            conn.execute(
-                """
-                UPDATE sessions
-                SET total_prompt_tokens = total_prompt_tokens + ?,
-                    total_completion_tokens = total_completion_tokens + ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (p_tok, c_tok, now, session_id),
+        resolved = self.resolve_session_id(session_id) or session_id
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return
+        raw.setdefault("messages", []).append(_serialize_message(msg))
+        if msg.usage is not None:
+            raw["total_prompt_tokens"] = int(raw.get("total_prompt_tokens", 0)) + (
+                msg.usage.prompt_tokens
             )
+            raw["total_completion_tokens"] = int(raw.get("total_completion_tokens", 0)) + (
+                msg.usage.completion_tokens
+            )
+        raw["updated_at"] = _now_iso()
+        self._write_raw(resolved, raw)
 
     def replace_messages(self, session_id: str, messages: list[ChatMessage]) -> None:
         """Replace all stored messages for a session (used by clear/compact)."""
-        now = _now_iso()
-        with self._connect() as conn:
-            conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
-            for seq, msg in enumerate(messages):
-                self._insert_message_row(conn, session_id, seq, msg)
-            conn.execute(
-                "UPDATE sessions SET updated_at = ? WHERE id = ?",
-                (now, session_id),
-            )
+        resolved = self.resolve_session_id(session_id) or session_id
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return
+        raw["messages"] = [_serialize_message(m) for m in messages]
+        raw["updated_at"] = _now_iso()
+        self._write_raw(resolved, raw)
 
     def update_active_model(self, session_id: str, active_model: str) -> None:
         """Persist active model change for a session."""
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE sessions SET active_model = ?, updated_at = ? WHERE id = ?",
-                (active_model, _now_iso(), session_id),
-            )
+        resolved = self.resolve_session_id(session_id) or session_id
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return
+        raw["active_model"] = active_model
+        raw["updated_at"] = _now_iso()
+        self._write_raw(resolved, raw)
 
     def rename_session(self, session_id: str, title: str) -> bool:
         """Rename a session. Returns True if found and updated."""
         resolved = self.resolve_session_id(session_id)
         if resolved is None:
             return False
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?",
-                (title, _now_iso(), resolved),
-            )
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return False
+        raw["title"] = title
+        raw["updated_at"] = _now_iso()
+        self._write_raw(resolved, raw)
         return True
 
     def auto_title_if_default(self, session_id: str, first_user_prompt: str) -> None:
@@ -404,25 +314,18 @@ class SessionStore:
 
     def search_sessions(self, query: str) -> list[SessionRecord]:
         """Search sessions by title or message content."""
-        pattern = f"%{query}%"
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT DISTINCT s.*, COALESCE(cnt_tbl.cnt, 0) AS msg_count
-                FROM sessions s
-                LEFT JOIN messages m ON m.session_id = s.id
-                LEFT JOIN (
-                    SELECT session_id, COUNT(*) AS cnt
-                    FROM messages
-                    WHERE role != 'system'
-                    GROUP BY session_id
-                ) cnt_tbl ON cnt_tbl.session_id = s.id
-                WHERE s.title LIKE ? OR m.content LIKE ?
-                ORDER BY s.updated_at DESC
-                """,
-                (pattern, pattern),
-            ).fetchall()
-            return [self._row_to_session(r, int(r["msg_count"])) for r in rows]
+        needle = query.lower()
+        matches: list[SessionRecord] = []
+        for raw in self._iter_all_raw():
+            title_match = needle in str(raw.get("title", "")).lower()
+            msg_match = any(
+                needle in str(m.get("content", "")).lower()
+                for m in raw.get("messages", [])
+                if isinstance(m, dict)
+            )
+            if title_match or msg_match:
+                matches.append(self._to_record(raw))
+        return matches
 
     def compact_session(
         self,
@@ -464,9 +367,11 @@ class SessionStore:
         resolved = self.resolve_session_id(session_id)
         if resolved is None:
             return False
-        with self._connect() as conn:
-            conn.execute("DELETE FROM sessions WHERE id = ?", (resolved,))
-        return True
+        path = self._session_path(resolved)
+        if path.exists():
+            path.unlink()
+            return True
+        return False
 
     def create_checkpoint(
         self,
@@ -476,46 +381,36 @@ class SessionStore:
         state: dict[str, Any] | None = None,
     ) -> CheckpointRecord | None:
         """Save a durable checkpoint for a session (e.g. before an approval boundary)."""
-        sess = self.get_session(session_id)
-        if sess is None:
+        resolved = self.resolve_session_id(session_id)
+        if resolved is None:
+            return None
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
             return None
 
         cp_id = _new_id("cp")
         now = _now_iso()
         state_payload = state or {}
-
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COALESCE(MAX(seq), -1) AS max_seq FROM messages WHERE session_id = ?",
-                (sess.id,),
-            ).fetchone()
-            max_seq = int(row["max_seq"])
-            conn.execute(
-                """
-                INSERT INTO checkpoints (
-                    id, session_id, message_seq, active_model, reason, state_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    cp_id,
-                    sess.id,
-                    max_seq,
-                    sess.active_model,
-                    reason,
-                    json.dumps(state_payload),
-                    now,
-                ),
-            )
-            conn.execute(
-                "UPDATE sessions SET last_checkpoint_id = ?, updated_at = ? WHERE id = ?",
-                (cp_id, now, sess.id),
-            )
+        max_seq = len(raw.get("messages", [])) - 1
+        cp_dict = {
+            "id": cp_id,
+            "session_id": resolved,
+            "message_seq": max_seq,
+            "active_model": str(raw["active_model"]),
+            "reason": reason,
+            "state": state_payload,
+            "created_at": now,
+        }
+        raw.setdefault("checkpoints", []).append(cp_dict)
+        raw["last_checkpoint_id"] = cp_id
+        raw["updated_at"] = now
+        self._write_raw(resolved, raw)
 
         return CheckpointRecord(
             id=cp_id,
-            session_id=sess.id,
+            session_id=resolved,
             message_seq=max_seq,
-            active_model=sess.active_model,
+            active_model=str(raw["active_model"]),
             reason=reason,
             state=state_payload,
             created_at=now,
@@ -526,19 +421,19 @@ class SessionStore:
         resolved = self.resolve_session_id(session_id)
         if resolved is None:
             return None
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM checkpoints WHERE session_id = ? ORDER BY created_at DESC LIMIT 1",
-                (resolved,),
-            ).fetchone()
-            if row is None:
-                return None
-            return CheckpointRecord(
-                id=str(row["id"]),
-                session_id=str(row["session_id"]),
-                message_seq=int(row["message_seq"]),
-                active_model=str(row["active_model"]),
-                reason=str(row["reason"]),
-                state=json.loads(str(row["state_json"])),
-                created_at=str(row["created_at"]),
-            )
+        raw = self._read_raw(self._session_path(resolved))
+        if raw is None:
+            return None
+        checkpoints = raw.get("checkpoints", [])
+        if not checkpoints:
+            return None
+        latest = max(checkpoints, key=lambda c: str(c.get("created_at", "")))
+        return CheckpointRecord(
+            id=str(latest["id"]),
+            session_id=str(latest["session_id"]),
+            message_seq=int(latest["message_seq"]),
+            active_model=str(latest["active_model"]),
+            reason=str(latest["reason"]),
+            state=dict(latest.get("state", {})),
+            created_at=str(latest["created_at"]),
+        )

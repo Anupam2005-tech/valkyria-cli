@@ -11,12 +11,12 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(autouse=True)
-def _isolated_valkyrie_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep all test runs isolated from ~/.valkyrie and the developer's .env."""
+def _isolated_valkyria_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep all test runs isolated from ~/.valkyria and the developer's .env."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg_config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg_data"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg_cache"))
     monkeypatch.delenv("PINECONE_API_KEY", raising=False)
     monkeypatch.delenv("PINECONE_INDEX", raising=False)
-    monkeypatch.setattr("valkyrie.rag.embeddings._APP_ROOT", tmp_path / "app_root")
+    monkeypatch.setattr("valkyria.rag.embeddings._APP_ROOT", tmp_path / "app_root")
     monkeypatch.chdir(tmp_path)

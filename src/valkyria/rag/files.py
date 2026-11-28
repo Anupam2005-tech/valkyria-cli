@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from valkyrie.core.workspace import list_workspace_files, resolve_workspace_path
+from valkyria.core.workspace import list_workspace_files, resolve_workspace_path
 
 if TYPE_CHECKING:
     from pathlib import Path

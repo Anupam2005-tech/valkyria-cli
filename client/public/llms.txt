@@ -1,6 +1,6 @@
-# Valkyrie
+# Valkyria
 
-> Valkyrie (`valkyrie` / `vk`) is a terminal-first AI coding agent that plans, edits files, searches the web with DuckDuckGo, and indexes codebases in Pinecone using your own Groq, Google Gemini, and NVIDIA API keys under explicit approval.
+> Valkyria (`valkyria` / `vk`) is a terminal-first AI coding agent that plans, edits files, searches the web with DuckDuckGo, and indexes codebases in Pinecone using your own Groq, Google Gemini, and NVIDIA API keys under explicit approval.
 
 ## Core Capabilities
 
@@ -8,14 +8,14 @@
 - **Bring Your Own Keys (BYOK)**: API keys are encrypted client-side with Argon2id + AES-256-GCM before syncing ciphertext through Firebase.
 - **Pinecone Cloud RAG**: Codebase chunks and embeddings are stored exclusively in your Pinecone cloud index (never in a local vector DB).
 - **Approval-Gated System Access**: File creation, edits, and deletions show diffs and require explicit `[Y/n/a]` approval, with protected system paths blocked.
-- **Real Session Persistence**: Conversations are stored in local SQLite (`~/.valkyrie/data/sessions.db`) with `/new`, `/session`, `/compact`, and `/account` commands.
+- **Real Session Persistence**: Conversations are stored locally as JSON (`~/.valkyria/data/sessions/` and `~/.valkyria/data/checkpoints/`) with `/new`, `/session`, `/compact`, `/plan`, and `/account` commands.
 
 ## Installation
 
 ```bash
-pipx install valkyrie
+pipx install valkyria
 # or
-uv tool install valkyrie
+uv tool install valkyria
 ```
 
 ## Key Pages & Resources

@@ -4,7 +4,7 @@ Auth CLI commands — login, switch, delete, logout, and status.
 
 import click
 
-from valkyrie.auth.account import (
+from valkyria.auth.account import (
     delete_account,
     login_account,
     logout_account,

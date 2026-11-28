@@ -2,14 +2,24 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Search, ChevronRight } from "lucide-react";
-import { Navbar } from "@/components/nav/Navbar";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Copy,
+  Github,
+  Menu,
+  Search,
+  X,
+} from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import { FooterSection } from "@/components/sections/FooterSection";
-import { DotGrid } from "@/components/ui/DotGrid";
 import { COMMANDS_REFERENCE } from "@/lib/constants";
 
 interface DocSection {
   id: string;
+  num: string;
   title: string;
   group: string;
   body: string;
@@ -20,23 +30,25 @@ interface DocSection {
 const DOC_SECTIONS: DocSection[] = [
   {
     id: "getting-started",
-    title: "1. Getting started",
+    num: "01",
+    title: "Getting started",
     group: "Start",
-    body: "Valkyrie is a terminal-first AI coding agent that runs on your own Groq, Gemini and NVIDIA API keys. It pairs multi-provider streaming with Pinecone cloud RAG, SQLite session persistence, and explicit approval prompts before modifying files or running commands.",
+    body: "Valkyria is a terminal-first AI coding agent that runs on your own Groq, Gemini, and NVIDIA API keys. It pairs multi-provider streaming with Pinecone cloud RAG, sandboxed command & package tools, JSON session persistence, and explicit approval prompts before touching your machine.",
     code: {
       lang: "bash",
-      content: "pipx install valkyria-cli\nvalkyrie login\nvalkyrie chat",
+      content: "pipx install valkyria-cli\nvalkyria login\nvalkyria chat",
     },
     callout: {
       kind: "tip",
-      text: "Use the short binary alias `vk` anywhere instead of typing `valkyrie` (e.g. `vk chat`, `vk m rf`).",
+      text: "Use the short binary alias `vk` anywhere instead of typing `valkyria` (e.g. `vk chat`, `vk m rf`).",
     },
   },
   {
     id: "installation",
-    title: "2. Installation",
+    num: "02",
+    title: "Installation",
     group: "Start",
-    body: "Install Valkyrie in an isolated Python 3.12+ environment using pipx or uv. Ensure your Pinecone credentials (PINECONE_API_KEY and PINECONE_INDEX) are present in the application .env file.",
+    body: "Install Valkyria in an isolated Python 3.12+ environment using pipx or uv. Sign-in opens the hosted browser page; the CLI does not need a Firebase API key. Configure Pinecone only if you enable cloud retrieval.",
     code: {
       lang: "bash",
       content: "uv tool install valkyria-cli\n# or\npipx install valkyria-cli",
@@ -44,25 +56,39 @@ const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "login-and-onboarding",
-    title: "3. Login and onboarding",
+    num: "03",
+    title: "Login and onboarding",
     group: "Start",
-    body: "Run `valkyrie login` to authenticate via Firebase in your browser. Once signed in, the onboarding wizard collects your display name, craft, and provider API keys (Groq, Gemini, NVIDIA), encrypting them locally before any sync.",
+    body: "Run `valkyria login` in your terminal to open the protected browser sign-in flow. Once authenticated, the onboarding wizard collects your display name, craft, and provider API keys (Groq, Gemini, NVIDIA), encrypting them locally with AES-256-GCM before any sync.",
     callout: {
       kind: "note",
       text: "Use `/account switch` (or `/acc sw`) inside chat to change Firebase accounts, or `/account delete` to permanently remove your account and synced ciphertext.",
     },
   },
   {
+    id: "terminal-and-packages",
+    num: "04",
+    title: "Terminal commands & packages",
+    group: "Core",
+    body: "Valkyria can run shell commands (`run_command` / `/run`) and manage packages (`pkg_install` / `/pkg`) across pip, pip3, uv, pipx, npm, yarn, pnpm, cargo, brew, apt, and dnf. Every execution is locked to your workspace root, checked against a destructive command denylist, and gated by `[Y/n/a]` approval.",
+    code: {
+      lang: "text",
+      content: "> /run pytest -q\n> /pkg pip install httpx\n> /pkg npm install lucide-react",
+    },
+  },
+  {
     id: "commands-reference",
-    title: "4. Commands reference",
+    num: "05",
+    title: "Commands reference",
     group: "Reference",
-    body: "Every workflow inside Valkyrie is accessible via slash commands. Below is the complete reference table.",
+    body: "Every workflow inside Valkyria is accessible via slash commands. Below is the complete reference table.",
   },
   {
     id: "sessions-and-context",
-    title: "5. Sessions and context",
+    num: "06",
+    title: "Sessions and context",
     group: "Core",
-    body: "Conversations are stored locally in SQLite. Use `/new` to open a clean context window while preserving your previous session, `/session` to resume or rename past threads, `/fork` to branch, `/compact` to summarize older turns, and `/context` to inspect token usage.",
+    body: "Conversations are stored locally as JSON files in `~/.valkyria/data/sessions/` (with LangGraph checkpoints in `~/.valkyria/data/checkpoints/`). Use `/new` to open a clean context window while preserving your previous session, `/session` to resume or rename past threads, `/fork` to branch, `/compact` to summarize older turns, and `/budget` to inspect token usage.",
     code: {
       lang: "text",
       content: "> /new refactor auth\nNew session started.\n> /compact 6",
@@ -70,25 +96,21 @@ const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "rag-and-indexing",
-    title: "6. RAG and indexing",
+    num: "07",
+    title: "RAG and indexing",
     group: "Core",
-    body: "Valkyrie chunks workspace files by type, generates embeddings, and upserts vectors exclusively into your Pinecone cloud index (never stored in a local vector DB). Run `/index .` to index your project and `/search` or automatic RAG injection to ground responses.",
+    body: "Valkyria chunks workspace files by type, generates embeddings, and upserts vectors into your Pinecone cloud index. Run `/index .` to index your project and `/search` or automatic RAG injection to ground responses with file citations.",
     code: {
       lang: "bash",
-      content: "valkyrie rag index .\nvalkyrie rag status",
+      content: "valkyria rag index .\nvalkyria rag status",
     },
   },
   {
-    id: "plan-and-build",
-    title: "7. Plan and build",
-    group: "Core",
-    body: "Type `/plan <goal>` to break a task into inspectable steps before touching disk. Review, edit, and execute with `/build` while every file creation, edit, or deletion waits for confirmation.",
-  },
-  {
     id: "safety-and-permissions",
-    title: "8. Safety and permissions",
+    num: "08",
+    title: "Safety and permissions",
     group: "Security",
-    body: "Protected system paths (`/etc`, `/usr`, `/bin`, `.git`, `.env`, `vault.enc`, `auth.json`) are blocked from agent writes and deletes. Non-protected file changes display diffs and request `[Y/n/a]` approval unless you explicitly toggle `/auto on`.",
+    body: "Protected system paths (`/etc`, `/usr`, `/bin`, `.git`, `.env`, `vault.enc`, `auth.json`) are blocked from agent reads/writes, and destructive shell patterns (e.g. `rm -rf /`, `dd of=/dev/...`, fork bombs) are hard-blocked before prompting. Non-protected changes preview diffs and request `[Y/n/a]` approval unless `/auto on` is toggled.",
     callout: {
       kind: "warning",
       text: "Only enable `/auto on` inside trusted sandboxes or version-controlled workspaces.",
@@ -96,33 +118,32 @@ const DOC_SECTIONS: DocSection[] = [
   },
   {
     id: "providers-and-models",
-    title: "9. Providers and models",
+    num: "09",
+    title: "Providers and models",
     group: "Core",
-    body: "Switch providers or models on the fly with `/model <provider/id>`, `/model <provider>` to filter, or `/model pick` for an interactive selector. If a model is deprecated (such as retired Gemini models), Valkyrie surfaces instant one-command replacements.",
+    body: "Switch providers or models on the fly with `/model <provider/id>`, `/model <provider>` to filter, or `/model pick` for an interactive selector. If a model is deprecated, Valkyria surfaces instant one-command replacements without silent substitutions.",
     code: {
       lang: "text",
-      content: "> /model gemini\n> /model gemini/gemini-3.8-flash",
+      content: "> /model gemini\n> /model groq/llama-3.3-70b-versatile",
     },
   },
   {
     id: "vault-and-key-sync",
-    title: "10. Vault and key sync",
+    num: "10",
+    title: "Vault and key sync",
     group: "Security",
     body: "API keys are derived with Argon2id and encrypted client-side using AES-256-GCM before ever touching Firebase. Only ciphertext leaves your machine.",
   },
   {
     id: "troubleshooting",
-    title: "11. Troubleshooting",
+    num: "11",
+    title: "Troubleshooting",
     group: "Help",
-    body: "If Firebase sign-in fails with `auth/unauthorized-domain`, verify `localhost` and `127.0.0.1` are listed under Authorized Domains in Firebase Console. If RAG reports a missing key, confirm `PINECONE_API_KEY` is set in `.env`.",
-  },
-  {
-    id: "faq",
-    title: "12. FAQ",
-    group: "Help",
-    body: "Visit the FAQ section on the home page for quick answers on pricing, supported operating systems, and offline vs. cloud boundaries.",
+    body: "If Firebase sign-in fails with `auth/unauthorized-domain`, verify your deployment domain and `127.0.0.1` are listed under Authorized Domains in Firebase Console. If `/login` shows 'Terminal sign-in only', launch it from `valkyria login` in your terminal rather than opening `/login` directly.",
   },
 ];
+
+const GITHUB_URL = "https://github.com/Anupam2005-tech/valkyria-cli";
 
 function CodeBlock({ lang, content }: { lang: string; content: string }) {
   const [copied, setCopied] = useState(false);
@@ -138,21 +159,25 @@ function CodeBlock({ lang, content }: { lang: string; content: string }) {
   };
 
   return (
-    <div className="my-5 overflow-hidden rounded-[12px] border border-[rgba(242,244,241,0.12)] bg-[#101113]">
-      <div className="flex items-center justify-between border-b border-[rgba(242,244,241,0.10)] px-4 py-2">
-        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[#9499A0]">
+    <div className="my-5 overflow-hidden border border-white/[0.09] bg-[#0D0E10]">
+      <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-2">
+        <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[#6F747A]">
           {lang}
         </span>
         <button
           type="button"
           onClick={copy}
-          className="inline-flex items-center gap-1.5 font-mono text-[11px] text-[#A3A7AB] hover:text-[#FFC929] transition-colors"
+          className="inline-flex items-center gap-1.5 font-[family-name:var(--font-mono)] text-[11px] text-[#9499A0] transition-colors hover:text-[#FFC929]"
         >
-          {copied ? <Check className="h-3 w-3 text-[#FFC929]" /> : <Copy className="h-3 w-3" />}
+          {copied ? (
+            <Check className="h-3 w-3 text-[#FFC929]" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 font-mono text-xs sm:text-sm leading-relaxed text-[#F2F4F1]">
+      <pre className="overflow-x-auto p-4 font-[family-name:var(--font-mono)] text-xs leading-relaxed text-[#E5E7EB] sm:text-sm">
         <code>{content}</code>
       </pre>
     </div>
@@ -164,6 +189,7 @@ export default function DocsPage() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -179,19 +205,24 @@ export default function DocsPage() {
   }, []);
 
   useEffect(() => {
-    const onScroll = () => {
-      for (const sec of DOC_SECTIONS) {
-        const el = document.getElementById(sec.id);
-        if (!el) continue;
-        const r = el.getBoundingClientRect();
-        if (r.top <= 160 && r.bottom >= 120) {
-          setActiveId(sec.id);
-          break;
+    const elements = DOC_SECTIONS.map((s) => document.getElementById(s.id)).filter(
+      (el): el is HTMLElement => el !== null
+    );
+    if (elements.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          setActiveId(visible[0].target.id);
         }
-      }
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+      },
+      { rootMargin: "-18% 0px -65% 0px", threshold: 0 }
+    );
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
   }, []);
 
   const filteredSections = useMemo(() => {
@@ -203,33 +234,123 @@ export default function DocsPage() {
   }, [query]);
 
   const groups = ["Start", "Core", "Security", "Reference", "Help"];
-
   const activeIdx = DOC_SECTIONS.findIndex((s) => s.id === activeId);
   const prevSec = activeIdx > 0 ? DOC_SECTIONS[activeIdx - 1] : null;
   const nextSec = activeIdx < DOC_SECTIONS.length - 1 ? DOC_SECTIONS[activeIdx + 1] : null;
 
   return (
-    <>
-      <DotGrid dimmed />
-      <Navbar solid />
+    <div className="min-h-screen bg-[#101113] text-[#F2F4F1] selection:bg-[#FFC929] selection:text-[#101113]">
+      {/* Subtle architectural dot-grid */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.24]"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(242, 244, 241, 0.14) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
 
-      <main className="relative z-10 mx-auto max-w-[1280px] px-6 sm:px-10 pt-28 pb-24">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-          {/* Left Sidebar */}
-          <aside className="lg:col-span-3">
-            <div className="lg:sticky lg:top-24 space-y-5">
+      {/* OpenCode-style minimal sticky header */}
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#101113]/85 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-[1380px] items-center justify-between px-5 sm:px-8">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="flex items-center gap-2.5 text-[#F2F4F1] transition-opacity hover:opacity-90"
+            >
+              <Logo size={24} />
+              <span className="font-[family-name:var(--font-mono)] text-sm font-semibold tracking-tight">
+                valkyria
+              </span>
+            </Link>
+            <span className="hidden font-[family-name:var(--font-mono)] text-xs text-[#6F747A] sm:inline">
+              / docs
+            </span>
+          </div>
+
+          <nav className="hidden items-center gap-6 md:flex">
+            <Link
+              href="/"
+              className="font-[family-name:var(--font-mono)] text-xs text-[#9499A0] transition-colors hover:text-[#F2F4F1]"
+            >
+              Overview
+            </Link>
+            <Link
+              href="/#changelog"
+              className="font-[family-name:var(--font-mono)] text-xs text-[#9499A0] transition-colors hover:text-[#F2F4F1]"
+            >
+              Changelog
+            </Link>
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Valkyria on GitHub"
+              className="text-[#9499A0] transition-colors hover:text-[#F2F4F1]"
+            >
+              <Github className="h-4 w-4" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="inline-flex items-center gap-2 border border-white/20 px-3 py-1 font-[family-name:var(--font-mono)] text-xs text-[#F2F4F1] transition hover:border-[#FFC929] hover:text-[#FFC929]"
+            >
+              <Search className="h-3 w-3" />
+              <span>Ctrl K</span>
+            </button>
+          </nav>
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Toggle documentation menu"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-[#F2F4F1] md:hidden"
+          >
+            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {mobileMenuOpen && (
+          <div className="border-t border-white/[0.07] bg-[#101113] px-5 py-4 md:hidden">
+            <div className="flex flex-col gap-2.5">
+              {DOC_SECTIONS.map((s) => (
+                <a
+                  key={s.id}
+                  href={`#${s.id}`}
+                  onClick={() => {
+                    setActiveId(s.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex items-center gap-2.5 font-[family-name:var(--font-mono)] text-xs ${
+                    activeId === s.id ? "text-[#FFC929]" : "text-[#9499A0]"
+                  }`}
+                >
+                  <span className="opacity-60">[{s.num}]</span>
+                  <span>{s.title}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Main 3-column OpenCode editorial docs layout */}
+      <div className="relative z-10 mx-auto max-w-[1380px] px-5 sm:px-8">
+        <div className="py-10 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_200px] lg:gap-12">
+          {/* Left Sticky Sidebar */}
+          <aside className="hidden lg:block lg:self-start lg:sticky lg:top-20">
+            <div className="space-y-6 py-2">
               <button
                 type="button"
                 onClick={() => setPaletteOpen(true)}
-                className="flex w-full items-center justify-between rounded-[12px] border border-[rgba(242,244,241,0.14)] bg-[#151619] px-3.5 py-2.5 text-xs text-[#A3A7AB] hover:border-[#FFC929]/50 transition-colors min-h-[44px]"
+                className="flex w-full items-center justify-between border border-white/[0.10] bg-[#141518] px-3 py-2 font-[family-name:var(--font-mono)] text-xs text-[#9499A0] transition-colors hover:border-[#FFC929]/50 hover:text-[#F2F4F1]"
               >
                 <span className="inline-flex items-center gap-2">
-                  <Search className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  Search docs...
+                  <Search className="h-3.5 w-3.5" />
+                  Search...
                 </span>
-                <kbd className="rounded bg-[#26282C] px-1.5 py-0.5 font-mono text-[10px] text-[#F2F4F1]">
-                  Ctrl K
-                </kbd>
+                <kbd className="text-[10px] text-[#6F747A]">⌘K</kbd>
               </button>
 
               <nav aria-label="Documentation sections" className="space-y-4">
@@ -243,17 +364,17 @@ export default function DocsPage() {
                         onClick={() =>
                           setCollapsedGroups((p) => ({ ...p, [grp]: !p[grp] }))
                         }
-                        className="flex w-full items-center justify-between py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[#9499A0] hover:text-[#F2F4F1]"
+                        className="flex w-full items-center justify-between py-1 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.14em] text-[#6F747A] hover:text-[#F2F4F1]"
                       >
                         <span>{grp}</span>
                         <ChevronRight
-                          className={`h-3.5 w-3.5 transition-transform ${
+                          className={`h-3 w-3 transition-transform ${
                             collapsed ? "" : "rotate-90"
                           }`}
                         />
                       </button>
                       {!collapsed && (
-                        <ul className="mt-1.5 space-y-1 border-l border-[rgba(242,244,241,0.10)] pl-3">
+                        <ul className="mt-1.5 space-y-1.5">
                           {items.map((item) => {
                             const active = activeId === item.id;
                             return (
@@ -261,13 +382,14 @@ export default function DocsPage() {
                                 <a
                                   href={`#${item.id}`}
                                   onClick={() => setActiveId(item.id)}
-                                  className={`block py-1 text-sm transition-colors ${
+                                  className={`flex items-center gap-2 font-[family-name:var(--font-mono)] text-xs transition-colors ${
                                     active
-                                      ? "font-medium text-[#FFC929]"
-                                      : "text-[#A3A7AB] hover:text-[#F2F4F1]"
+                                      ? "text-[#FFC929]"
+                                      : "text-[#9499A0] hover:text-[#F2F4F1]"
                                   }`}
                                 >
-                                  {item.title}
+                                  <span className="opacity-50">[{item.num}]</span>
+                                  <span className="truncate">{item.title}</span>
                                 </a>
                               </li>
                             );
@@ -281,19 +403,37 @@ export default function DocsPage() {
             </div>
           </aside>
 
-          {/* Center Content */}
-          <article className="lg:col-span-6 max-w-[72ch]">
-            <span className="type-label text-[#FFC929]">Documentation</span>
-            <h1 className="type-display-lg mt-2 text-[#F2F4F1]">
-              User{" "}
-              <span className="font-accent-word text-[#FFC929]">manual.</span>
-            </h1>
+          {/* Center Documentation Content */}
+          <main className="min-w-0 max-w-[74ch]">
+            <div className="border-b border-white/[0.08] pb-8">
+              <div className="font-[family-name:var(--font-mono)] text-xs text-[#FFC929]">
+                Manual · v0.1.3
+              </div>
+              <h1 className="mt-2 text-[clamp(32px,4.5vw,48px)] font-semibold leading-[1.06] tracking-[-0.03em] text-[#F2F4F1]">
+                Valkyria{" "}
+                <span className="font-[family-name:var(--font-accent)] font-normal italic text-[#FFC929]">
+                  documentation.
+                </span>
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-[#9499A0] sm:text-base">
+                Installation, slash commands, sandboxed shell &amp; package tools,
+                Pinecone cloud RAG, and client-side key encryption.
+              </p>
+            </div>
 
-            <div className="mt-10 space-y-14">
+            <div className="divide-y divide-white/[0.08]">
               {DOC_SECTIONS.map((sec) => (
-                <section key={sec.id} id={sec.id} className="scroll-mt-28">
-                  <h2 className="type-h3 text-[#F2F4F1]">{sec.title}</h2>
-                  <p className="mt-3 text-[17px] leading-[1.7] text-[#A3A7AB]">
+                <section key={sec.id} id={sec.id} className="scroll-mt-24 py-10">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-[family-name:var(--font-mono)] text-xs text-[#FFC929] tabular-nums">
+                      [{sec.num}]
+                    </span>
+                    <h2 className="text-xl font-semibold tracking-tight text-[#F2F4F1]">
+                      {sec.title}
+                    </h2>
+                  </div>
+
+                  <p className="mt-3 text-sm leading-[1.75] text-[#A3A7AB] sm:text-[15px]">
                     {sec.body}
                   </p>
 
@@ -301,15 +441,15 @@ export default function DocsPage() {
 
                   {sec.callout && (
                     <div
-                      className={`my-5 rounded-[12px] border p-4 text-sm leading-relaxed ${
+                      className={`my-5 border p-4 text-xs leading-relaxed sm:text-sm ${
                         sec.callout.kind === "warning"
                           ? "border-[#E06D53]/40 bg-[#E06D53]/10 text-[#F2F4F1]"
                           : sec.callout.kind === "tip"
-                          ? "border-[#FFC929]/40 bg-[#FFC929]/10 text-[#F2F4F1]"
-                          : "border-[rgba(242,244,241,0.18)] bg-[#151619] text-[#A3A7AB]"
+                          ? "border-[#FFC929]/35 bg-[#FFC929]/10 text-[#F2F4F1]"
+                          : "border-white/[0.12] bg-[#141518] text-[#A3A7AB]"
                       }`}
                     >
-                      <span className="mr-2 font-mono text-xs uppercase tracking-wider text-[#FFC929]">
+                      <span className="mr-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-wider text-[#FFC929]">
                         {sec.callout.kind}:
                       </span>
                       {sec.callout.text}
@@ -317,21 +457,18 @@ export default function DocsPage() {
                   )}
 
                   {sec.id === "commands-reference" && (
-                    <div className="mt-6 overflow-x-auto rounded-[16px] border border-[rgba(242,244,241,0.12)] bg-[#151619]">
-                      <table className="w-full text-left text-sm">
+                    <div className="mt-6 overflow-x-auto border border-white/[0.09] bg-[#141518]">
+                      <table className="w-full text-left text-xs sm:text-sm">
                         <thead>
-                          <tr className="border-b border-[rgba(242,244,241,0.10)] font-mono text-xs uppercase tracking-wider text-[#9499A0]">
+                          <tr className="border-b border-white/[0.08] bg-[#101113] font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-wider text-[#6F747A]">
                             <th className="px-4 py-3">Command</th>
                             <th className="px-4 py-3">Action</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-white/[0.06]">
                           {COMMANDS_REFERENCE.map((row) => (
-                            <tr
-                              key={row.cmd}
-                              className="border-b border-[rgba(242,244,241,0.08)] last:border-b-0"
-                            >
-                              <td className="px-4 py-2.5 font-mono text-xs text-[#FFC929] whitespace-nowrap">
+                            <tr key={row.cmd} className="hover:bg-white/[0.02]">
+                              <td className="whitespace-nowrap px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-[#FFC929]">
                                 {row.cmd}
                               </td>
                               <td className="px-4 py-2.5 text-[#A3A7AB]">{row.action}</td>
@@ -345,48 +482,49 @@ export default function DocsPage() {
               ))}
             </div>
 
-            {/* Prev / Next + Edit link */}
-            <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-[rgba(242,244,241,0.10)] pt-8">
-              <div className="flex items-center gap-4">
+            {/* Prev / Next Navigation */}
+            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.08] pt-8">
+              <div>
                 {prevSec && (
                   <a
                     href={`#${prevSec.id}`}
-                    className="rounded-full border border-[rgba(242,244,241,0.14)] px-4 py-2 text-xs text-[#A3A7AB] hover:text-[#F2F4F1]"
+                    className="inline-flex items-center gap-2 border border-white/20 px-3.5 py-2 font-[family-name:var(--font-mono)] text-xs text-[#A3A7AB] transition hover:border-[#FFC929] hover:text-[#FFC929]"
                   >
-                    Prev: {prevSec.title}
-                  </a>
-                )}
-                {nextSec && (
-                  <a
-                    href={`#${nextSec.id}`}
-                    className="rounded-full border border-[rgba(242,244,241,0.14)] px-4 py-2 text-xs text-[#A3A7AB] hover:text-[#FFC929]"
-                  >
-                    Next: {nextSec.title}
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <span>{prevSec.title}</span>
                   </a>
                 )}
               </div>
-              <Link
-                href="/"
-                className="font-mono text-xs text-[#9499A0] hover:text-[#FFC929]"
-              >
-                Edit this page [link]
-              </Link>
+              <div>
+                {nextSec && (
+                  <a
+                    href={`#${nextSec.id}`}
+                    className="inline-flex items-center gap-2 border border-white/20 px-3.5 py-2 font-[family-name:var(--font-mono)] text-xs text-[#F2F4F1] transition hover:border-[#FFC929] hover:text-[#FFC929]"
+                  >
+                    <span>{nextSec.title}</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </a>
+                )}
+              </div>
             </div>
-          </article>
+          </main>
 
-          {/* Right TOC */}
-          <aside className="hidden lg:block lg:col-span-3">
-            <div className="sticky top-24">
-              <span className="type-label text-[#9499A0]">On this page</span>
-              <ul className="mt-4 space-y-2 border-l border-[rgba(242,244,241,0.10)] pl-3">
+          {/* Right Sticky TOC */}
+          <aside className="hidden lg:block lg:self-start lg:sticky lg:top-20">
+            <div className="py-2">
+              <div className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.14em] text-[#6F747A]">
+                On this page
+              </div>
+              <ul className="mt-4 space-y-2 border-l border-white/[0.08] pl-3">
                 {DOC_SECTIONS.map((sec) => (
                   <li key={sec.id}>
                     <a
                       href={`#${sec.id}`}
-                      className={`block text-xs transition-colors ${
+                      onClick={() => setActiveId(sec.id)}
+                      className={`block font-[family-name:var(--font-mono)] text-xs transition-colors ${
                         activeId === sec.id
-                          ? "text-[#FFC929] font-medium"
-                          : "text-[#9499A0] hover:text-[#F2F4F1]"
+                          ? "text-[#FFC929]"
+                          : "text-[#6F747A] hover:text-[#F2F4F1]"
                       }`}
                     >
                       {sec.title}
@@ -397,18 +535,18 @@ export default function DocsPage() {
             </div>
           </aside>
         </div>
-      </main>
+      </div>
 
       {/* Command Palette Modal */}
       {paletteOpen && (
         <div
-          className="fixed inset-0 z-[80] flex items-start justify-center bg-black/70 px-4 pt-24 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-start justify-center bg-black/75 px-4 pt-24 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) setPaletteOpen(false);
           }}
         >
-          <div className="w-full max-w-lg rounded-[20px] border border-[rgba(242,244,241,0.18)] bg-[#151619] p-4 shadow-soft">
-            <div className="flex items-center gap-3 border-b border-[rgba(242,244,241,0.10)] pb-3">
+          <div className="w-full max-w-lg border border-white/15 bg-[#141518] p-4 shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-white/[0.08] pb-3">
               <Search className="h-4 w-4 text-[#FFC929]" />
               <input
                 autoFocus
@@ -416,10 +554,10 @@ export default function DocsPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Jump to a manual section..."
-                className="w-full bg-transparent text-sm text-[#F2F4F1] placeholder-[#9499A0] focus:outline-none"
+                className="w-full bg-transparent font-[family-name:var(--font-mono)] text-xs text-[#F2F4F1] placeholder-[#6F747A] focus:outline-none sm:text-sm"
               />
             </div>
-            <ul className="mt-3 max-h-72 overflow-y-auto space-y-1">
+            <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto">
               {filteredSections.map((s) => (
                 <li key={s.id}>
                   <a
@@ -428,10 +566,17 @@ export default function DocsPage() {
                       setActiveId(s.id);
                       setPaletteOpen(false);
                     }}
-                    className="flex items-center justify-between rounded-[10px] px-3 py-2 text-sm text-[#A3A7AB] hover:bg-[#26282C] hover:text-[#FFC929]"
+                    className="flex items-center justify-between px-3 py-2 text-xs text-[#A3A7AB] transition hover:bg-white/[0.05] hover:text-[#FFC929]"
                   >
-                    <span>{s.title}</span>
-                    <span className="font-mono text-[11px] text-[#9499A0]">{s.group}</span>
+                    <span>
+                      <span className="mr-2 font-[family-name:var(--font-mono)] opacity-50">
+                        [{s.num}]
+                      </span>
+                      {s.title}
+                    </span>
+                    <span className="font-[family-name:var(--font-mono)] text-[10px] text-[#6F747A]">
+                      {s.group}
+                    </span>
                   </a>
                 </li>
               ))}
@@ -441,7 +586,6 @@ export default function DocsPage() {
       )}
 
       <FooterSection />
-    </>
+    </div>
   );
 }
-

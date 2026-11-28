@@ -147,28 +147,37 @@ const HWF_CSS = `
 }
 .hwf-root canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; max-width: none; }
 .hwf-top {
-  position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(3, minmax(0, 1fr));
-  gap: 24px; padding: clamp(22px, 3.4vw, 40px) clamp(20px, 3.4vw, 44px) 0;
-  font-family: var(--hwf-mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; line-height: 1.75;
+  position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: 24px; max-width: 1380px; margin: 0 auto; padding: clamp(28px, 4vw, 48px) 20px 0;
+  font-family: var(--hwf-mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; line-height: 1.75;
 }
-.hwf-brand strong { display: block; font-weight: 500; }
-.hwf-brand span { opacity: .45; }
-.hwf-col h3 { margin: 0; font: inherit; opacity: .4; font-weight: 500; }
+@media (min-width: 640px) {
+  .hwf-top { padding-left: 32px; padding-right: 32px; }
+}
+@media (min-width: 1024px) {
+  .hwf-top { grid-template-columns: 200px repeat(3, minmax(0, 1fr)); gap: 48px; }
+}
+.hwf-brand strong { display: block; font-weight: 600; font-size: 12px; margin-bottom: 4px; }
+.hwf-brand span { display: block; opacity: .55; max-width: 24ch; line-height: 1.5; }
+.hwf-col h3 { margin: 0 0 8px; font: inherit; opacity: .45; font-weight: 500; }
 .hwf-col ul { list-style: none; margin: 0; padding: 0; }
 .hwf-col a, .hwf-up {
-  display: inline-flex; align-items: center; min-height: 44px; padding: 10px 4px;
+  display: inline-flex; align-items: center; min-height: 30px; padding: 4px 0;
   color: inherit; text-decoration: none; opacity: .78; background: none; border: 0;
   font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
   background-image: linear-gradient(currentColor, currentColor); background-size: 0% 1px;
-  background-repeat: no-repeat; background-position: 0 calc(100% - 8px); transition: opacity .25s ease, background-size .35s cubic-bezier(.2,.7,.1,1);
+  background-repeat: no-repeat; background-position: 0 calc(100% - 2px); transition: opacity .25s ease, background-size .35s cubic-bezier(.2,.7,.1,1);
 }
 .hwf-col a:hover, .hwf-up:hover { opacity: 1; background-size: 100% 1px; }
 .hwf-col a:focus-visible, .hwf-up:focus-visible { outline: 1px solid currentColor; outline-offset: 3px; opacity: 1; }
 .hwf-rule {
   position: relative; z-index: 1; display: flex; justify-content: flex-end; align-items: center; gap: 16px;
-  margin: clamp(18px, 2.6vw, 30px) clamp(20px, 3.4vw, 44px) 0; padding-top: 12px;
+  max-width: 1380px; margin: 24px auto 0; padding: 12px 20px 0;
   border-top: 0.5px solid color-mix(in srgb, var(--hwf-ink) 16%, transparent);
   font-family: var(--hwf-mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+}
+@media (min-width: 640px) {
+  .hwf-rule { padding-left: 32px; padding-right: 32px; }
 }
 .hwf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 720px) {
@@ -248,7 +257,7 @@ export default function HalftoneWordmarkFooter({
       const face = o.fontWeight + " 100px " + o.fontFamily
       m.font = face
       const word = o.wordmark || " "
-      const fit = hwfFitSize(m.measureText(word).width, w * 1.02)
+      const fit = hwfFitSize(m.measureText(word).width, w * 0.99)
       m.font = o.fontWeight + " " + fit + "px " + o.fontFamily
       const box = m.measureText(word)
       const cap = box.actualBoundingBoxAscent || fit * 0.72

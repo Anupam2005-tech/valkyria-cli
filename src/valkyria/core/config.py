@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from valkyrie.core.paths import get_config_path
+from valkyria.core.paths import get_config_path
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -44,12 +44,12 @@ class ProviderConfig(BaseModel):
 class PineconeConfig(BaseModel):
     """Configuration for Pinecone vector DB (RAG)."""
 
-    index_name: str = "valkyrie-rag"
+    index_name: str = "valkyria-rag"
     cloud: str = "aws"
     region: str = "us-east-1"
 
 
-class ValkyrieConfig(BaseModel):
+class ValkyriaConfig(BaseModel):
     """Root configuration schema."""
 
     version: int = 1
@@ -63,7 +63,7 @@ class ValkyrieConfig(BaseModel):
     feature_flags: dict[str, bool] = Field(default_factory=dict)
 
     @classmethod
-    def load(cls) -> ValkyrieConfig:
+    def load(cls) -> ValkyriaConfig:
         """Load config from disk, or return defaults if not found."""
         path = get_config_path()
         if path.exists():

@@ -11,8 +11,8 @@ from rich import box
 from rich.table import Table
 from rich.text import Text
 
-from valkyrie.core.config import ProviderConfig, ValkyrieConfig
-from valkyrie.core.console import (
+from valkyria.core.config import ProviderConfig, ValkyriaConfig
+from valkyria.core.console import (
     console,
     print_error,
     print_info,
@@ -21,8 +21,8 @@ from valkyrie.core.console import (
     print_success,
     print_warning,
 )
-from valkyrie.providers.base import ASSIGNABLE_ROLES, ModelCapability, ModelInfo
-from valkyrie.providers.registry import PROVIDERS, ModelRegistry
+from valkyria.providers.base import ASSIGNABLE_ROLES, ModelCapability, ModelInfo
+from valkyria.providers.registry import PROVIDERS, ModelRegistry
 
 
 def _format_ctx(ctx: int | None) -> str:
@@ -75,7 +75,7 @@ def model(ctx: click.Context) -> None:
     if ctx.invoked_subcommand is not None:
         return
 
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     registry = ModelRegistry.load_cache()
 
     console.print()
@@ -97,7 +97,7 @@ def model(ctx: click.Context) -> None:
         )
     else:
         print_info(
-            "No cached models yet. Run [bold]valkyrie model refresh[/bold] to fetch catalogs."
+            "No cached models yet. Run [bold]valkyria model refresh[/bold] to fetch catalogs."
         )
     console.print()
 
@@ -138,7 +138,7 @@ def list_cmd(
 ) -> None:
     """List models available under configured keys, optionally filtered by provider."""
     registry = ModelRegistry.load_cache()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
 
     console.print()
     print_rule("Model Catalog")
@@ -146,7 +146,7 @@ def list_cmd(
 
     if not registry.models:
         print_info("No cached models found.")
-        print_info("Run [bold]valkyrie model refresh[/bold] after adding a provider key.")
+        print_info("Run [bold]valkyria model refresh[/bold] after adding a provider key.")
         console.print()
         return
 
@@ -213,15 +213,15 @@ def list_cmd(
 )
 def refresh(provider: str | None) -> None:
     """Validate keys and fetch live model catalogs from providers."""
-    from valkyrie.vault.prompt import verify_and_prompt
-    from valkyrie.vault.store import get_key, vault_exists
+    from valkyria.vault.prompt import verify_and_prompt
+    from valkyria.vault.store import get_key, vault_exists
 
     console.print()
     print_rule("Refresh Model Catalog")
     console.print()
 
     if not vault_exists():
-        print_error("No key vault found. Run [bold]valkyrie keys add[/bold] first.")
+        print_error("No key vault found. Run [bold]valkyria keys add[/bold] first.")
         console.print()
         return
 
@@ -246,7 +246,7 @@ def refresh(provider: str | None) -> None:
     registry = ModelRegistry.load_cache()
     summary = asyncio.run(registry.refresh(api_keys))
 
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     console.print()
     for pkey, (valid, count) in summary.items():
         p_obj = PROVIDERS[pkey]
@@ -266,7 +266,7 @@ def refresh(provider: str | None) -> None:
 def set_cmd(role: str, model_id: str) -> None:
     """Assign a model (provider/model or unique model ID) to a role, or 'unassigned' to clear."""
     role = role.lower()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
 
     console.print()
     print_rule("Set Role Assignment")
@@ -311,8 +311,8 @@ def set_cmd(role: str, model_id: str) -> None:
         if model_info is None:
             print_error(f"Model '{resolved_id}' not found in cached catalog.")
             print_info(
-                "Run [bold]valkyrie model list[/bold] to inspect available models, "
-                "or [bold]valkyrie model refresh[/bold]."
+                "Run [bold]valkyria model list[/bold] to inspect available models, "
+                "or [bold]valkyria model refresh[/bold]."
             )
             console.print()
             raise SystemExit(1)

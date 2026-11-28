@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from click.testing import CliRunner
 
-from valkyrie.cli.main import cli
-from valkyrie.providers.base import ModelCapability, ModelInfo
-from valkyrie.providers.gemini import GeminiProvider
-from valkyrie.providers.groq import GroqProvider
-from valkyrie.providers.nvidia import NvidiaProvider
-from valkyrie.providers.registry import ModelRegistry
+from valkyria.cli.main import cli
+from valkyria.providers.base import ModelCapability, ModelInfo
+from valkyria.providers.gemini import GeminiProvider
+from valkyria.providers.groq import GroqProvider
+from valkyria.providers.nvidia import NvidiaProvider
+from valkyria.providers.registry import ModelRegistry
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -79,7 +79,7 @@ class TestProviderClients:
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
 
-        with patch("valkyrie.providers.groq.httpx.AsyncClient", return_value=mock_client):
+        with patch("valkyria.providers.groq.httpx.AsyncClient", return_value=mock_client):
             models = asyncio.run(GroqProvider().fetch_models("gsk_test"))
 
         assert len(models) == 2
@@ -114,7 +114,7 @@ class TestProviderClients:
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
 
-        with patch("valkyrie.providers.gemini.httpx.AsyncClient", return_value=mock_client):
+        with patch("valkyria.providers.gemini.httpx.AsyncClient", return_value=mock_client):
             models = asyncio.run(GeminiProvider().fetch_models("AIza_test"))
 
         assert len(models) == 2
@@ -140,7 +140,7 @@ class TestProviderClients:
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
 
-        with patch("valkyrie.providers.nvidia.httpx.AsyncClient", return_value=mock_client):
+        with patch("valkyria.providers.nvidia.httpx.AsyncClient", return_value=mock_client):
             models = asyncio.run(NvidiaProvider().fetch_models("nvapi-test"))
 
         assert len(models) == 2
@@ -183,7 +183,7 @@ class TestProviderClients:
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
 
-        with patch("valkyrie.providers.gemini.httpx.AsyncClient", return_value=mock_client):
+        with patch("valkyria.providers.gemini.httpx.AsyncClient", return_value=mock_client):
             g_models = asyncio.run(GeminiProvider().fetch_models("AIza_test"))
 
         assert [m.id for m in g_models] == ["gemini-3.8-flash", "gemini-embedding-001"]
@@ -197,7 +197,7 @@ class TestProviderClients:
             ]
         }
         mock_resp.json.return_value = groq_payload
-        with patch("valkyrie.providers.groq.httpx.AsyncClient", return_value=mock_client):
+        with patch("valkyria.providers.groq.httpx.AsyncClient", return_value=mock_client):
             q_models = asyncio.run(GroqProvider().fetch_models("gsk_test"))
         assert [m.id for m in q_models] == ["openai/gpt-oss-120b"]
 
@@ -243,7 +243,7 @@ class TestModelRegistry:
             context_window=2048,
         )
 
-        with patch("valkyrie.providers.registry.get_models_cache_path", return_value=cache_file):
+        with patch("valkyria.providers.registry.get_models_cache_path", return_value=cache_file):
             reg = ModelRegistry(models={m1.qualified_id: m1, m2.qualified_id: m2})
             reg.save_cache()
 
@@ -256,7 +256,7 @@ class TestModelRegistry:
 
 
 class TestModelCli:
-    """Tests for valkyrie model CLI commands."""
+    """Tests for valkyria model CLI commands."""
 
     def test_model_overview_and_set(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.json"
@@ -278,8 +278,8 @@ class TestModelCli:
         )
 
         with (
-            patch("valkyrie.core.config.get_config_path", return_value=config_file),
-            patch("valkyrie.providers.registry.get_models_cache_path", return_value=cache_file),
+            patch("valkyria.core.config.get_config_path", return_value=config_file),
+            patch("valkyria.providers.registry.get_models_cache_path", return_value=cache_file),
         ):
             reg = ModelRegistry(models={m1.qualified_id: m1, m2.qualified_id: m2})
             reg.save_cache()

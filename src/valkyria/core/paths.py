@@ -1,20 +1,20 @@
 """
 Filesystem paths — config, data, and cache directories.
 
-Everything lives under ~/.valkyrie/ by default. The XDG_CONFIG_HOME
+Everything lives under ~/.valkyria/ by default. The XDG_CONFIG_HOME
 and XDG_DATA_HOME environment variables are respected if set.
 """
 
 import os
 from pathlib import Path
 
-_APP_DIR_NAME = ".valkyrie"
+_APP_DIR_NAME = ".valkyria"
 
 
 def get_config_dir() -> Path:
     """Return the config directory, creating it if needed."""
     xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg) / "valkyrie" if xdg else Path.home() / _APP_DIR_NAME
+    base = Path(xdg) / "valkyria" if xdg else Path.home() / _APP_DIR_NAME
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -22,7 +22,7 @@ def get_config_dir() -> Path:
 def get_data_dir() -> Path:
     """Return the data directory (sessions, indexes), creating it if needed."""
     xdg = os.environ.get("XDG_DATA_HOME")
-    base = Path(xdg) / "valkyrie" if xdg else get_config_dir() / "data"
+    base = Path(xdg) / "valkyria" if xdg else get_config_dir() / "data"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -30,7 +30,7 @@ def get_data_dir() -> Path:
 def get_cache_dir() -> Path:
     """Return the cache directory, creating it if needed."""
     xdg = os.environ.get("XDG_CACHE_HOME")
-    base = Path(xdg) / "valkyrie" if xdg else get_config_dir() / "cache"
+    base = Path(xdg) / "valkyria" if xdg else get_config_dir() / "cache"
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -55,9 +55,18 @@ def get_models_cache_path() -> Path:
     return get_cache_dir() / "models.json"
 
 
-def get_sessions_db_path() -> Path:
-    """Return the path to the sessions database."""
-    return get_data_dir() / "sessions.db"
+def get_sessions_dir() -> Path:
+    """Return the directory for JSON session files, creating it if needed."""
+    path = get_data_dir() / "sessions"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_checkpoints_dir() -> Path:
+    """Return the directory for JSON LangGraph checkpoint files, creating it if needed."""
+    path = get_data_dir() / "checkpoints"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def ensure_dirs() -> None:

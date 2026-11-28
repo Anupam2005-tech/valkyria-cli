@@ -4,7 +4,7 @@ import React from "react";
 export const metadata: Metadata = {
   title: "Documentation & Command Reference",
   description:
-    "Complete user manual for Valkyrie CLI: installation, slash commands, Pinecone RAG indexing, Groq/Gemini/NVIDIA model switching, and encrypted vault sync.",
+    "Complete user manual for Valkyria CLI: installation, slash commands, Pinecone RAG indexing, Groq/Gemini/NVIDIA model switching, and encrypted vault sync.",
   alternates: {
     canonical: "/docs",
   },

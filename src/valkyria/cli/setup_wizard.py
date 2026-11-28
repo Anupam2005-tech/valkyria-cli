@@ -18,14 +18,14 @@ import click
 from rich.panel import Panel
 from rich.table import Table
 
-from valkyrie.auth.tokens import AuthUser, get_valid_user
-from valkyrie.core.config import (
+from valkyria.auth.tokens import AuthUser, get_valid_user
+from valkyria.core.config import (
     ModelAssignment,
     ProviderConfig,
     UserProfile,
-    ValkyrieConfig,
+    ValkyriaConfig,
 )
-from valkyrie.core.console import (
+from valkyria.core.console import (
     console,
     print_banner,
     print_error,
@@ -35,10 +35,10 @@ from valkyrie.core.console import (
     print_success,
     print_warning,
 )
-from valkyrie.providers.base import ModelCapability, ModelInfo
-from valkyrie.providers.registry import ModelRegistry, get_provider
-from valkyrie.vault.prompt import prompt_master_password, verify_and_prompt
-from valkyrie.vault.store import (
+from valkyria.providers.base import ModelCapability, ModelInfo
+from valkyria.providers.registry import ModelRegistry, get_provider
+from valkyria.vault.prompt import prompt_master_password, verify_and_prompt
+from valkyria.vault.store import (
     SUPPORTED_PROVIDERS,
     add_key,
     get_key,
@@ -46,7 +46,7 @@ from valkyrie.vault.store import (
     save_vault_blob,
     vault_exists,
 )
-from valkyrie.vault.sync import pull_vault, push_vault
+from valkyria.vault.sync import pull_vault, push_vault
 
 _CORE_ROLES = ["chat", "code", "planner", "vision", "summarization"]
 _EXPERTISE_CHOICES = ["beginner", "intermediate", "advanced", "skip"]
@@ -64,14 +64,14 @@ def _step_auth() -> AuthUser | None:
         return user
 
     print_info(
-        "Valkyrie uses Firebase Google sign-in (via a local browser handoff) "
+        "Valkyria uses Firebase Google sign-in (via a local browser handoff) "
         "to back up your encrypted key vault."
     )
     print_info("You can also run locally without signing in and log in later.")
     console.print()
 
     if click.confirm("  Sign in with Google now?", default=False):
-        from valkyrie.cli.auth_commands import login
+        from valkyria.cli.auth_commands import login
 
         ctx = click.get_current_context(silent=True)
         if ctx is not None:
@@ -371,7 +371,7 @@ def _step_assignments(
 
 
 def _step_review_and_save(
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     user: AuthUser | None,
     password: str | None,
 ) -> bool:
@@ -447,11 +447,11 @@ def _step_review_and_save(
             print_success("Encrypted vault synced to Firebase.")
         else:
             print_warning(
-                "Vault sync could not complete right now. Run 'valkyrie keys sync' later."
+                "Vault sync could not complete right now. Run 'valkyria keys sync' later."
             )
 
     console.print()
-    print_info("Ready. Try inspecting your catalog: [bold]valkyrie model list[/bold]")
+    print_info("Ready. Try inspecting your catalog: [bold]valkyria model list[/bold]")
     console.print()
     return True
 
@@ -461,7 +461,7 @@ def run_setup_wizard() -> bool:
     print_banner()
     console.print()
 
-    existing = ValkyrieConfig.load()
+    existing = ValkyriaConfig.load()
     user = _step_auth()
     password, api_keys, registry = _step_providers_and_discovery(user)
     if password is None:
@@ -490,7 +490,7 @@ def run_setup_wizard() -> bool:
         if pkey in SUPPORTED_PROVIDERS
     }
 
-    new_config = ValkyrieConfig(
+    new_config = ValkyriaConfig(
         version=existing.version,
         first_run_complete=True,
         profile=profile,

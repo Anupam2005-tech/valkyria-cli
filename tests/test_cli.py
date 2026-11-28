@@ -1,17 +1,23 @@
 """Tests for the CLI entry point and auth commands."""
 
+from __future__ import annotations
+
+import importlib.metadata
+import subprocess
+import sys
+
 from click.testing import CliRunner
 
-from valkyrie import __version__
-from valkyrie.cli.main import cli
+from valkyria import __app_name__, __version__
+from valkyria.cli.main import cli
 
 
 def test_cli_shows_banner() -> None:
-    """Running valkyrie with no args shows the banner."""
+    """Running valkyria with no args shows the banner."""
     runner = CliRunner()
     result = runner.invoke(cli)
     assert result.exit_code == 0
-    assert "VALKYRIE" in result.output
+    assert "VALKYRIA" in result.output
 
 
 def test_cli_version() -> None:
@@ -68,3 +74,29 @@ def test_short_cli_aliases() -> None:
     res_auth = runner.invoke(cli, ["a", "--help"])
     assert res_auth.exit_code == 0
     assert "switch" in res_auth.output
+
+
+def test_package_metadata_and_module_entrypoint() -> None:
+    """Package metadata, console scripts, and `python -m valkyria` reflect the valkyria rename."""
+    assert __app_name__ == "valkyria"
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "valkyria", "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert f"valkyria, version {__version__}" in proc.stdout
+
+    try:
+        dist = importlib.metadata.distribution("valkyria-cli")
+    except importlib.metadata.PackageNotFoundError:
+        return
+
+    assert dist.version == __version__
+    scripts = {ep.name: ep.value for ep in dist.entry_points if ep.group == "console_scripts"}
+    assert scripts == {
+        "valkyria": "valkyria.cli.main:cli",
+        "vk": "valkyria.cli.main:cli",
+    }

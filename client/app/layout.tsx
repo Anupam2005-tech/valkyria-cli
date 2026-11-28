@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Montserrat } from "next/font/google";
+import { Instrument_Serif, JetBrains_Mono, Montserrat } from "next/font/google";
 import React from "react";
 import "./globals.css";
 
@@ -7,6 +7,21 @@ const montserrat = Montserrat({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-montserrat",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono-google",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["italic"],
+  variable: "--font-serif-google",
   display: "swap",
 });
 
@@ -20,13 +35,13 @@ export const metadata: Metadata = {
     apple: "/icon.svg",
   },
   title: {
-    default: "Valkyrie | Terminal-Native AI Coding Agent (BYOK)",
-    template: "%s | Valkyrie",
+    default: "Valkyria | Terminal-Native AI Coding Agent (BYOK)",
+    template: "%s | Valkyria",
   },
   description:
-    "Valkyrie is a terminal-first AI coding agent that plans, edits files, searches the web with DuckDuckGo, and indexes codebases in Pinecone using your own Groq, Gemini, and NVIDIA API keys under explicit approval.",
+    "Valkyria is a terminal-first AI coding agent that plans, edits files, searches the web with DuckDuckGo, and indexes codebases in Pinecone using your own Groq, Gemini, and NVIDIA API keys under explicit approval.",
   keywords: [
-    "Valkyrie CLI",
+    "Valkyria CLI",
     "terminal AI agent",
     "AI coding CLI",
     "BYOK AI agent",
@@ -37,9 +52,9 @@ export const metadata: Metadata = {
     "AES-256-GCM API key vault",
     "local AI developer tool",
   ],
-  authors: [{ name: "Valkyrie" }],
-  creator: "Valkyrie",
-  publisher: "Valkyrie",
+  authors: [{ name: "Valkyria" }],
+  creator: "Valkyria",
+  publisher: "Valkyria",
   robots: {
     index: true,
     follow: true,
@@ -52,17 +67,17 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "Valkyrie | Terminal-Native AI Coding Agent",
+    title: "Valkyria | Terminal-Native AI Coding Agent",
     description:
       "Plan, build, and ship from your terminal with Groq, Gemini, and NVIDIA on your own keys. Cloud RAG with Pinecone and approval-gated file edits.",
     url: SITE_URL,
-    siteName: "Valkyrie",
+    siteName: "Valkyria",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Valkyrie | Terminal-Native AI Coding Agent",
+    title: "Valkyria | Terminal-Native AI Coding Agent",
     description:
       "Plan, build, and ship from your terminal with Groq, Gemini, and NVIDIA on your own keys.",
   },
@@ -76,11 +91,11 @@ export default function RootLayout({
   const softwareJsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "Valkyrie",
+    name: "Valkyria",
     alternateName: "vk",
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Linux, macOS, Windows",
-    softwareVersion: "0.1.2",
+    softwareVersion: "0.1.3",
     url: SITE_URL,
     description:
       "Terminal-native AI coding agent that plans, edits local files with approval gates, searches the web via DuckDuckGo, and indexes codebases in Pinecone using user-supplied Groq, Gemini, and NVIDIA API keys.",
@@ -94,14 +109,14 @@ export default function RootLayout({
       "Client-side Argon2id + AES-256-GCM API key encryption with Firebase sync",
       "Pinecone cloud RAG codebase indexing and retrieval",
       "Approval-gated local file CRUD and protected path safeguards",
-      "SQLite session persistence with /new, /session, /compact, and /model",
+      "Local JSON session persistence with /new, /session, /compact, and /model",
     ],
   };
 
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Valkyrie",
+    name: "Valkyria",
     url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",
@@ -111,7 +126,11 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" className={`dark ${montserrat.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`dark ${montserrat.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script
           type="application/ld+json"

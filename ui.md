@@ -1,4 +1,4 @@
-# Valkyrie Launch Website: Master Build Prompt
+# Valkyria Launch Website: Master Build Prompt
 
 > Paste everything below the line into your AI builder (Claude Code, Cursor, v0, etc.).
 > Everything in `[brackets]` is a placeholder to confirm before launch.
@@ -7,7 +7,7 @@
 
 ## 0. Brief
 
-Build a **dark-theme, 3D, scroll-driven, immersive marketing website** that launches **Valkyrie**, a terminal-first AI agent that plans and builds with Groq, Gemini and NVIDIA models, on the user's own API keys, with cloud RAG (Pinecone), approval-gated system access and real session management.
+Build a **dark-theme, 3D, scroll-driven, immersive marketing website** that launches **Valkyria**, a terminal-first AI agent that plans and builds with Groq, Gemini and NVIDIA models, on the user's own API keys, with cloud RAG (Pinecone), approval-gated system access and real session management.
 
 The site must feel **premium, sassy and flagship-level (award-site quality)**. It has its **own identity**. Take inspiration for *motion quality, terminal-native confidence and playfulness* from motion.dev, opencode.ai and openclaw.ai, but **do not copy any layout, copy, mascot or asset** from them.
 
@@ -37,7 +37,7 @@ The site must feel **premium, sassy and flagship-level (award-site quality)**. I
 
 ## 1. Brand identity
 
-**Concept:** the Valkyrie, the one who *chooses*. Valkyrie chooses the right model for each task, shields you from risky actions and carries your work to the finish.
+**Concept:** the Valkyria, the one who *chooses*. Valkyria chooses the right model for each task, shields you from risky actions and carries your work to the finish.
 
 **Visual motifs (use consistently, every section must show at least one)**
 
@@ -52,7 +52,7 @@ The site must feel **premium, sassy and flagship-level (award-site quality)**. I
 
 **Tone of voice:** confident, short, a little cheeky. Never corporate. No emojis in UI. No exclamation-mark spam.
 
-**Logo:** a hexagon outline with two blade-wings extending left and right and a small yellow center notch. Build it as an inline SVG (`<Logo />`) usable at 24px to 240px. Wordmark "Valkyrie" in the display font, set beside it.
+**Logo:** a hexagon outline with two blade-wings extending left and right and a small yellow center notch. Build it as an inline SVG (`<Logo />`) usable at 24px to 240px. Wordmark "Valkyria" in the display font, set beside it.
 
 ---
 
@@ -184,7 +184,7 @@ Type scale (fluid):
 - **Section transitions:** feather-cut clip-path wipes plus the 3D camera flight; content fades and rises (`translateY(24px)`, blur 6px to 0).
 
 ### 4.3 Intro loader (first visit only, 1.6s max)
-Hexagon outline draws itself (stroke-dashoffset), wings extend, "Valkyrie" letters stagger in, then the loader splits open and reveals the hero. Skippable and shown once per session.
+Hexagon outline draws itself (stroke-dashoffset), wings extend, "Valkyria" letters stagger in, then the loader splits open and reveals the hero. Skippable and shown once per session.
 
 ### 4.4 Background
 - Fixed **dot grid** (React Bits Dot Grid style, restyled: dots `rgba(242,244,241,0.14)`, active dots near cursor turn yellow).
@@ -211,7 +211,7 @@ Hexagon outline draws itself (stroke-dashoffset), wings extend, "Valkyrie" lette
 
 **Navbar**
 - Floating glass pill, centered, `top: 16px`, `max-width: 860px`, height 56px, background `var(--glass)`, `backdrop-filter: blur(16px)`, 1px `--line` border.
-- Left: `<Logo />` + "Valkyrie". Center links: **How it works**, **Why Valkyrie**, **FAQ**, **Setup**, **Docs** (route `/docs`). Right: primary pill **Get Valkyrie** (yellow, graphite text, magnetic).
+- Left: `<Logo />` + "Valkyria". Center links: **How it works**, **Why Valkyria**, **FAQ**, **Setup**, **Docs** (route `/docs`). Right: primary pill **Get Valkyria** (yellow, graphite text, magnetic).
 - The active link follows the current section (scroll-spy) with a sliding yellow underline pill.
 - **Hides on scroll down, reappears on scroll up.** Shrinks to 48px after 80px of scroll.
 - Mobile (at or below 820px): logo + circular burger. Opens a full-screen sheet in graphite with large display-font links, staggered entrance, close on link click, Escape and overlay click.
@@ -226,12 +226,12 @@ Hexagon outline draws itself (stroke-dashoffset), wings extend, "Valkyrie" lette
   grew *wings.*
   ```
   "wings" in Instrument Serif italic, `--sun`. Lines reveal with mask-up animation, delays 0.15s and 0.35s.
-- **Subhead** (`body-lg`, muted): "Valkyrie plans, builds and ships using Groq, Gemini and NVIDIA, on your keys, under your approval. Local memory. Real sessions. Zero hand-waving."
-- **CTAs:** primary **Get Valkyrie** (yellow pill, glow, magnetic) and ghost **Read the manual** (`/docs`).
-- **Install chip** under the CTAs: mono, `$ pipx install valkyrie` `[confirm package name]`, click to copy, "Copied" feedback.
+- **Subhead** (`body-lg`, muted): "Valkyria plans, builds and ships using Groq, Gemini and NVIDIA, on your keys, under your approval. Local memory. Real sessions. Zero hand-waving."
+- **CTAs:** primary **Get Valkyria** (yellow pill, glow, magnetic) and ghost **Read the manual** (`/docs`).
+- **Install chip** under the CTAs: mono, `$ pipx install valkyria` `[confirm package name]`, click to copy, "Copied" feedback.
 - **Terminal mockup** (the hero's signature element): glass card with a window header (three hex dots instead of macOS circles), tilted `rotateY(-12deg) rotateX(6deg)`, easing flat toward the cursor. Looping typed script:
   ```
-  $ valkyrie
+  $ valkyria
   Hey Sam. Ready. model: auto · ctx 4%
   > /plan add rate limiting to the FastAPI service
     Plan · 4 steps
@@ -250,15 +250,15 @@ Hexagon outline draws itself (stroke-dashoffset), wings extend, "Valkyrie" lette
 Pinned section, about 300vh of scroll, the camera flies through the four rings.
 
 - **Title:** "Four moves. One flight path."
-- **Manifesto line** (scrubbed word-fill): "No prompt gymnastics. You say what you want, Valkyrie shows its plan, you approve, it builds."
+- **Manifesto line** (scrubbed word-fill): "No prompt gymnastics. You say what you want, Valkyria shows its plan, you approve, it builds."
 - Left: sticky step list (Aceternity Sticky Scroll Reveal style, restyled). Right: a glass panel showing a **mini terminal snippet per step**, crossfading as steps change. The matching 3D ring lights up.
 
 | # | Step | Copy | Terminal snippet |
 |---|---|---|---|
-| 01 | **Connect** | "Log in from your browser, paste your Groq, Gemini and NVIDIA keys, tell Valkyrie your name and what you do. It remembers." | `valkyrie login` then onboarding prompts |
+| 01 | **Connect** | "Log in from your browser, paste your Groq, Gemini and NVIDIA keys, tell Valkyria your name and what you do. It remembers." | `valkyria login` then onboarding prompts |
 | 02 | **Plan** | "Type /plan. Your task becomes steps you can read, edit and approve." | `/plan migrate auth to JWT` with the plan list |
 | 03 | **Approve** | "Every write, command or install waits for your yes. Diffs shown. Undo ready." | A diff view with `[a]pprove [d]eny` |
-| 04 | **Build** | "Valkyrie executes, checks its own work and saves the session. `/new` for a clean slate, `/session` to pick up later." | Test run passing, session saved line |
+| 04 | **Build** | "Valkyria executes, checks its own work and saves the session. `/new` for a clean slate, `/session` to pick up later." | Test run passing, session saved line |
 
 - Each step number is mono, huge, outlined in cloud, filling yellow when active.
 
@@ -267,9 +267,9 @@ Pinned section, about 300vh of scroll, the camera flies through the four rings.
 Clip-path wipe reveals a **Soft Cloud** panel (`#F2F4F1`, graphite text). The 3D scene dims behind it.
 
 - **Title:** "Not another chat box in a terminal costume." (accent word: *costume*, serif italic, graphite with a yellow underline swash.)
-- **Comparison table** (rows reveal one by one on scroll, with a 3D tilt hover). Two columns: **Typical AI CLI** (muted graphite 55%) and **Valkyrie** (full graphite, yellow check hex).
+- **Comparison table** (rows reveal one by one on scroll, with a 3D tilt hover). Two columns: **Typical AI CLI** (muted graphite 55%) and **Valkyria** (full graphite, yellow check hex).
 
-| | Typical AI CLI | Valkyrie |
+| | Typical AI CLI | Valkyria |
 |---|---|---|
 | **Models** | One provider, one lock-in | Groq, Gemini and NVIDIA, routed per task with automatic fallback |
 | **Your keys** | Held on someone else's server | Yours, encrypted on your machine before they ever sync |
@@ -306,13 +306,13 @@ Calm section (3D beat is minimal). Two columns on desktop: left sticky title "Qu
 - Accordion: keyboard-accessible (`button` + `aria-expanded`, `aria-controls`), animated height, yellow hex marker rotating on open, only one open at a time, first open by default.
 - Entries (copy is final unless marked):
 
-1. **Does Valkyrie run offline?** "Models are hosted by your providers and RAG vectors live in your Pinecone cloud index, so chatting and RAG search need internet. Your local files and SQLite sessions stay on your machine."
+1. **Does Valkyria run offline?** "Models are hosted by your providers and RAG vectors live in your Pinecone cloud index, so chatting and RAG search need internet. Your local files and JSON sessions stay on your machine."
 2. **Where do my API keys live?** "Encrypted on your machine with your master password before anything syncs. Firebase only ever stores ciphertext, so we can't read your keys."
-3. **Which models can I use?** "Groq, Gemini and NVIDIA at launch, with more providers planned. Valkyrie routes per task and falls back automatically."
+3. **Which models can I use?** "Groq, Gemini and NVIDIA at launch, with more providers planned. Valkyria routes per task and falls back automatically."
 4. **Can it change files or run commands on my laptop?** "Only with your approval. Every write, command, package install or system inspection is tiered, shown to you first, and undoable."
-5. **Is my code uploaded anywhere?** "Valkyrie retrieves relevant chunks locally and sends only that context to the model provider you chose, per request."
+5. **Is my code uploaded anywhere?** "Valkyria retrieves relevant chunks locally and sends only that context to the model provider you chose, per request."
 6. **How much does it cost?** "`[Decide pricing.]` You bring your own keys and pay providers directly."
-7. **What systems does it run on?** "`[Confirm: Windows, macOS, Linux.]` Valkyrie is a Python CLI installed with pipx or uv."
+7. **What systems does it run on?** "`[Confirm: Windows, macOS, Linux.]` Valkyria is a Python CLI installed with pipx or uv."
 8. **How do sessions work?** "`/new` opens a fresh context window. `/session` lists previous sessions so you can resume, rename or delete them."
 
 ### 5.6 Setup steps
@@ -321,25 +321,25 @@ Five **ascending hex platforms** in 3D; the yellow arrow climbs as you scroll. O
 
 | # | Step | Command | Note |
 |---|---|---|---|
-| 1 | **Install** | `pipx install valkyrie` `[confirm]` | "Python 3.11+ required `[confirm]`" |
-| 2 | **Log in** | `valkyrie login` | "Opens your browser. Finish there and you're back in the terminal." |
-| 3 | **Onboard** | *(interactive)* | "Add your provider keys, set what Valkyrie calls you, tell it your craft." |
+| 1 | **Install** | `pipx install valkyria` `[confirm]` | "Python 3.11+ required `[confirm]`" |
+| 2 | **Log in** | `valkyria login` | "Opens your browser. Finish there and you're back in the terminal." |
+| 3 | **Onboard** | *(interactive)* | "Add your provider keys, set what Valkyria calls you, tell it your craft." |
 | 4 | **Index your project** | `/index .` | "Chunks your files into local memory." |
 | 5 | **Plan and build** | `/plan <your task>` then `/build` | "Approve each step. Ship." |
 
 - Each command sits in a **copy chip** (mono, pill, click to copy, cursor label "Copy", toast "Copied").
-- Below the stepper: a **CTA band** (rounded 28px, graphite-700, yellow glow edge): "Ready for takeoff?" with the install chip and the primary **Get Valkyrie** button.
+- Below the stepper: a **CTA band** (rounded 28px, graphite-700, yellow glow edge): "Ready for takeoff?" with the install chip and the primary **Get Valkyria** button.
 
 ### 5.7 Footer
 
 - 3D shards converge into the shield, which flattens into the wordmark.
-- A **giant outlined "VALKYRIE" wordmark** across the full width (cloud stroke 1px, no fill). On hover, each letter fills yellow progressively (stagger).
+- A **giant outlined "VALKYRIA" wordmark** across the full width (cloud stroke 1px, no fill). On hover, each letter fills yellow progressively (stagger).
 - Four link columns:
-  - **Product:** How it works, Why Valkyrie, Setup, FAQ
+  - **Product:** How it works, Why Valkyria, Setup, FAQ
   - **Resources:** Docs, Command reference, Changelog `[link]`
   - **Legal:** Terms & Conditions (`/terms`), Privacy Policy (`/privacy`)
   - **Community:** GitHub `[link]`, X `[link]`, Discord `[link]`
-- Bottom bar: "© 2026 Valkyrie. Built solo, flown everywhere." + "Back to top" magnetic pill.
+- Bottom bar: "© 2026 Valkyria. Built solo, flown everywhere." + "Back to top" magnetic pill.
 
 ---
 
@@ -356,7 +356,7 @@ Three-column layout: **left sidebar** (sections, collapsible, active item with a
 - Prev / Next page links; "Edit this page" `[link]`.
 
 **Sections to author (draft real content for each)**
-1. Getting started (what Valkyrie is, quick start)
+1. Getting started (what Valkyria is, quick start)
 2. Installation
 3. Login and onboarding (keys, name, profession, defaults)
 4. Commands reference (table below)
@@ -425,7 +425,7 @@ Two-column layout: sticky table of contents left, content right, "Last updated" 
 9. User rights and contact `[email]`
 
 ### 6.3 `/404`
-Shield with a cracked wing, headline "Even Valkyries get lost." and a **Back to base** button.
+Shield with a cracked wing, headline "Even Valkyrias get lost." and a **Back to base** button.
 
 ---
 
@@ -466,7 +466,7 @@ Shield with a cracked wing, headline "Even Valkyries get lost." and a **Back to 
 - The terminal mockup has a text alternative describing the demo.
 
 **SEO and meta**
-- Title: `Valkyrie | Terminal-native AI agent`. Description: "Plan, build and ship from your terminal with Groq, Gemini and NVIDIA, on your own keys."
+- Title: `Valkyria | Terminal-native AI agent`. Description: "Plan, build and ship from your terminal with Groq, Gemini and NVIDIA, on your own keys."
 - Open Graph and Twitter images (1200x630, graphite with the shield), favicon from the logo, `robots.txt`, `sitemap.xml`, JSON-LD `SoftwareApplication`.
 
 ---
@@ -474,7 +474,7 @@ Shield with a cracked wing, headline "Even Valkyries get lost." and a **Back to 
 ## 10. File structure
 
 ```
-valkyrie-site/
+valkyria-site/
   app/
     layout.tsx              # fonts, providers, nav, footer, canvas mount
     page.tsx                # composes the 7 sections
@@ -502,7 +502,7 @@ valkyrie-site/
 ## 11. Do not
 
 - No purple or neon gradients, no gradient or shimmer text, no glassmorphism overload (glass only on nav, terminal and one panel).
-- No stock 3D blobs; every 3D object is a Valkyrie motif (shield, wings, rings, shards, arrow).
+- No stock 3D blobs; every 3D object is a Valkyria motif (shield, wings, rings, shards, arrow).
 - No emojis in UI, no lorem ipsum, no placeholder avatars.
 - No heavy shadows, no pure `#000` backgrounds (use the graphite scale).
 - Do not copy layouts, copy, mascots or assets from the inspiration sites.

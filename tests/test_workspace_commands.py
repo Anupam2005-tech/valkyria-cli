@@ -6,17 +6,17 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit.document import Document
 
-from valkyrie.chat.commands import SlashCommandRegistry, ValkyrieCompleter
-from valkyrie.chat.engine import ChatEngine, _handle_slash_command, build_command_registry
-from valkyrie.chat.messages import ChatMessage, MessageRole
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.core.workspace import (
+from valkyria.chat.commands import SlashCommand, SlashCommandRegistry, ValkyriaCompleter
+from valkyria.chat.engine import ChatEngine, _handle_slash_command, build_command_registry
+from valkyria.chat.messages import ChatMessage, MessageRole
+from valkyria.core.config import ValkyriaConfig
+from valkyria.core.workspace import (
     detect_workspace_root,
     list_workspace_files,
     resolve_workspace_path,
 )
-from valkyrie.providers.registry import ModelRegistry
-from valkyrie.sessions.store import SessionStore
+from valkyria.providers.registry import ModelRegistry
+from valkyria.sessions.store import SessionStore
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,8 +38,8 @@ class TestWorkspaceAwareness:
         nested.mkdir(parents=True)
         assert detect_workspace_root(nested) == git_repo.resolve()
 
-        # .valkyrie marker wins over .git
-        (nested / ".valkyrie").mkdir()
+        # .valkyria marker wins over .git
+        (nested / ".valkyria").mkdir()
         assert detect_workspace_root(nested) == nested.resolve()
 
     def test_list_and_resolve_workspace_files(self, tmp_path: Path) -> None:
@@ -64,7 +64,7 @@ class TestSlashCommandsAndCompleter:
 
     def test_prefix_filter_and_feature_flags(self, tmp_path: Path) -> None:
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={},
             initial_model="groq/llama-3.3-70b-versatile",
@@ -80,25 +80,43 @@ class TestSlashCommandsAndCompleter:
         assert reg.resolve("/quit") is not None
         assert reg.resolve("/quit").name == "/exit"  # type: ignore[union-attr]
 
-        # Live Phase 9 commands are executable; upcoming Beta commands are hidden
+        # Live commands (/index, /plan) are executable; upcoming commands are hidden
+        reg.register(
+            SlashCommand(
+                "/future",
+                "/future",
+                "Upcoming preview feature",
+                upcoming=True,
+            )
+        )
         normal_help_names = {c.name for c in reg.help_commands()}
         assert "/index" in normal_help_names
-        assert "/plan" not in normal_help_names
-        assert reg.resolve("/plan") is None
+        assert "/plan" in normal_help_names
+        assert reg.resolve("/plan") is not None
+        assert "/future" not in normal_help_names
+        assert reg.resolve("/future") is None
 
         # Shown in /help only in dev builds, still not executable
         dev_reg = build_command_registry(
             ChatEngine(
-                config=ValkyrieConfig(feature_flags={"dev_mode": True}),
+                config=ValkyriaConfig(feature_flags={"dev_mode": True}),
                 registry=ModelRegistry(),
                 api_keys={},
                 initial_model="groq/llama-3.3-70b-versatile",
                 workspace_root=tmp_path,
             )
         )
+        dev_reg.register(
+            SlashCommand(
+                "/future",
+                "/future",
+                "Upcoming preview feature",
+                upcoming=True,
+            )
+        )
         dev_help_names = {c.name for c in dev_reg.help_commands()}
-        assert "/plan" in dev_help_names
-        assert dev_reg.resolve("/plan") is None
+        assert "/future" in dev_help_names
+        assert dev_reg.resolve("/future") is None
 
     def test_completer_slash_and_at_paths(self, tmp_path: Path) -> None:
         (tmp_path / "src").mkdir()
@@ -106,14 +124,14 @@ class TestSlashCommandsAndCompleter:
         (tmp_path / "notes.md").write_text("hi")
 
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={},
             initial_model="groq/llama-3.3-70b-versatile",
             workspace_root=tmp_path,
         )
         reg: SlashCommandRegistry = build_command_registry(engine)
-        completer = ValkyrieCompleter(reg, tmp_path)
+        completer = ValkyriaCompleter(reg, tmp_path)
 
         slash_comps = list(completer.get_completions(Document("/co"), None))
         assert [c.text for c in slash_comps] == ["/compact"]
@@ -130,7 +148,7 @@ class TestInChatCompact:
     """Tests for /compact inside ChatEngine with SessionStore."""
 
     def test_compact_command_updates_engine_and_store(self, tmp_path: Path) -> None:
-        store = SessionStore(db_path=tmp_path / "sessions.db")
+        store = SessionStore(sessions_dir=tmp_path / "sessions")
         sys_msg = ChatMessage(role=MessageRole.SYSTEM, content="sys")
         sess = store.create_session(
             active_model="groq/llama-3.3-70b-versatile",
@@ -138,7 +156,7 @@ class TestInChatCompact:
             initial_messages=[sys_msg],
         )
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={},
             initial_model="groq/llama-3.3-70b-versatile",

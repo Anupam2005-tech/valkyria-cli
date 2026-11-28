@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from valkyrie.providers.base import ModelCapability, ModelInfo
+from valkyria.providers.base import ModelCapability, ModelInfo
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 

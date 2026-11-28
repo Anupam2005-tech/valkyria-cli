@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import httpx
 
-from valkyrie.providers.base import ModelCapability, ModelInfo
+from valkyria.providers.base import ModelCapability, ModelInfo
 
 GROQ_API_BASE = "https://api.groq.com/openai/v1"
 

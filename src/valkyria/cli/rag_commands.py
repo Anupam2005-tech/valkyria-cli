@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import click
 
-from valkyrie.core.cards import render_tool_card
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.core.console import (
+from valkyria.core.cards import render_tool_card
+from valkyria.core.config import ValkyriaConfig
+from valkyria.core.console import (
     console,
     print_error,
     print_info,
@@ -17,9 +17,9 @@ from valkyrie.core.console import (
     print_success,
     print_warning,
 )
-from valkyrie.core.workspace import detect_workspace_root
-from valkyrie.rag.embeddings import resolve_pinecone_api_key, resolve_pinecone_config
-from valkyrie.rag.pipeline import (
+from valkyria.core.workspace import detect_workspace_root
+from valkyria.rag.embeddings import resolve_pinecone_api_key, resolve_pinecone_config
+from valkyria.rag.pipeline import (
     get_workspace_rag_store,
     index_workspace_path,
     search_workspace_rag,
@@ -37,7 +37,7 @@ def rag() -> None:
 def index(target: str) -> None:
     """Index a workspace file or directory into Pinecone DB."""
     ws_root = detect_workspace_root()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     pc_key = resolve_pinecone_api_key(ws_root)
     pc_cfg = resolve_pinecone_config(config, ws_root)
 
@@ -79,7 +79,7 @@ def index(target: str) -> None:
 def search(query: str, top_k: int) -> None:
     """Search indexed workspace documents in Pinecone with source citations."""
     ws_root = detect_workspace_root()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     pc_key = resolve_pinecone_api_key(ws_root)
 
     console.print()
@@ -100,7 +100,7 @@ def search(query: str, top_k: int) -> None:
         raise SystemExit(1) from exc
 
     if not hits:
-        print_warning("No matching chunks found. Run 'valkyrie rag index' first.")
+        print_warning("No matching chunks found. Run 'valkyria rag index' first.")
         console.print()
         return
 
@@ -124,7 +124,7 @@ def search(query: str, top_k: int) -> None:
 def status() -> None:
     """Show Pinecone retrieval configuration and workspace vector count."""
     ws_root = detect_workspace_root()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     pc_key = resolve_pinecone_api_key(ws_root)
     pc_cfg = resolve_pinecone_config(config, ws_root)
 
@@ -161,7 +161,7 @@ def status() -> None:
 def clear(yes: bool) -> None:
     """Clear the current workspace's local or hosted index."""
     ws_root = detect_workspace_root()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     pc_key = resolve_pinecone_api_key(ws_root)
 
     console.print()

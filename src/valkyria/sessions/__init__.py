@@ -1,9 +1,11 @@
-"""Session management — SQLite persistence, resume, fork, search, compact, checkpoints."""
+"""Session management — JSON persistence, resume, fork, search, compact, checkpoints."""
 
-from valkyrie.sessions.store import CheckpointRecord, SessionRecord, SessionStore
+from valkyria.sessions.checkpointer import JsonFileSaver
+from valkyria.sessions.store import CheckpointRecord, SessionRecord, SessionStore
 
 __all__ = [
     "CheckpointRecord",
+    "JsonFileSaver",
     "SessionRecord",
     "SessionStore",
 ]

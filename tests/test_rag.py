@@ -7,16 +7,20 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+from pydantic import Field
 
-from valkyrie.chat.engine import ChatEngine, _handle_slash_command
-from valkyrie.cli.main import cli
-from valkyrie.core.config import PineconeConfig, ValkyrieConfig
-from valkyrie.providers.registry import ModelRegistry
-from valkyrie.rag.chunker import chunk_text
-from valkyrie.rag.embeddings import local_hash_embed, resolve_pinecone_api_key
-from valkyrie.rag.files import collect_indexable_files, read_workspace_file
-from valkyrie.rag.pinecone_store import PineconeRagStore, workspace_namespace
-from valkyrie.rag.pipeline import index_workspace_path, search_workspace_rag
+from valkyria.chat.engine import ChatEngine, _handle_slash_command
+from valkyria.cli.main import cli
+from valkyria.core.config import PineconeConfig, ValkyriaConfig
+from valkyria.providers.registry import ModelRegistry
+from valkyria.rag.chunker import chunk_text
+from valkyria.rag.embeddings import local_hash_embed, resolve_pinecone_api_key
+from valkyria.rag.files import collect_indexable_files, read_workspace_file
+from valkyria.rag.pinecone_store import PineconeRagStore, workspace_namespace
+from valkyria.rag.pipeline import index_workspace_path, search_workspace_rag
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -93,20 +97,50 @@ class _FakePineconeClient:
         return self.indexes[name][1]
 
 
-class _FakeStreamResponse:
-    def __init__(self, lines: list[str]) -> None:
-        self._lines = lines
-        self.status_code = 200
+class _FakeRagChatModel(BaseChatModel):
+    captured_messages: list[list[BaseMessage]] = Field(default_factory=list)
 
-    async def __aenter__(self) -> _FakeStreamResponse:
+    @property
+    def _llm_type(self) -> str:
+        return "fake-rag"
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> _FakeRagChatModel:
         return self
 
-    async def __aexit__(self, *args: object) -> None:
-        return None
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        self.captured_messages.append(list(messages))
+        return ChatResult(
+            generations=[
+                ChatGeneration(
+                    message=AIMessage(
+                        content="Using Pinecone.",
+                        usage_metadata={"input_tokens": 30, "output_tokens": 5, "total_tokens": 35},
+                    )
+                )
+            ]
+        )
 
-    async def aiter_lines(self) -> AsyncIterator[str]:
-        for line in self._lines:
-            yield line
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        self.captured_messages.append(list(messages))
+        chunk = AIMessageChunk(
+            content="Using Pinecone.",
+            usage_metadata={"input_tokens": 30, "output_tokens": 5, "total_tokens": 35},
+        )
+        if run_manager:
+            await run_manager.on_llm_new_token("Using Pinecone.", chunk=chunk)
+        yield ChatGenerationChunk(message=chunk)
 
 
 class TestReadOnlyFileTool:
@@ -150,7 +184,7 @@ class TestChunkerAndEnvResolution:
     def test_resolve_pinecone_key_from_dotenv(self, tmp_path: Path, monkeypatch: Any) -> None:
         monkeypatch.delenv("PINECONE_API_KEY", raising=False)
         (tmp_path / ".env").write_text("PINECONE_API_KEY=pcsk_from_dotenv_123\n")
-        with patch("valkyrie.rag.embeddings.get_config_dir", return_value=tmp_path / "cfg"):
+        with patch("valkyria.rag.embeddings.get_config_dir", return_value=tmp_path / "cfg"):
             assert resolve_pinecone_api_key(tmp_path) == "pcsk_from_dotenv_123"
 
     def test_local_hash_embed_similarity(self) -> None:
@@ -177,7 +211,7 @@ class TestPineconeRagPipeline:
         (tmp_path / "cooking.md").write_text("Boil pasta in salted water for 8 minutes.\n")
 
         fake_pc = _FakePineconeClient()
-        cfg = ValkyrieConfig(pinecone=PineconeConfig(index_name="test-idx"))
+        cfg = ValkyriaConfig(pinecone=PineconeConfig(index_name="test-idx"))
         store = PineconeRagStore(
             api_key="pcsk_test",
             pinecone_config=cfg.pinecone,
@@ -203,7 +237,7 @@ class TestPineconeRagPipeline:
             "Pinecone uses serverless namespaces per workspace.\n"
         )
         fake_pc = _FakePineconeClient()
-        cfg = ValkyrieConfig(pinecone=PineconeConfig(index_name="test-idx"))
+        cfg = ValkyriaConfig(pinecone=PineconeConfig(index_name="test-idx"))
         store = PineconeRagStore(
             api_key="pcsk_test",
             pinecone_config=cfg.pinecone,
@@ -225,46 +259,28 @@ class TestPineconeRagPipeline:
         assert _handle_slash_command("/index .", engine) is True
         assert _handle_slash_command("/search serverless namespaces", engine) is True
 
-        captured_payload: dict[str, Any] = {}
+        fake_model = _FakeRagChatModel()
 
-        def _capture_stream(*args: Any, **kwargs: Any) -> _FakeStreamResponse:
-            captured_payload.update(kwargs.get("json", {}))
-            return _FakeStreamResponse(
-                [
-                    (
-                        'data: {"choices":[{"delta":{"content":"Using Pinecone."},'
-                        '"finish_reason":"stop"}]}'
-                    ),
-                    'data: {"choices":[],"usage":{"prompt_tokens":30,"completion_tokens":5}}',
-                    "data: [DONE]",
-                ]
-            )
-
-        fake_client = MagicMock()
-        fake_client.__aenter__.return_value = fake_client
-        fake_client.__aexit__.return_value = None
-        fake_client.stream.side_effect = _capture_stream
-
-        with patch("valkyrie.chat.clients.httpx.AsyncClient", return_value=fake_client):
+        with patch("valkyria.chat.clients.build_chat_model", return_value=fake_model):
             reply = asyncio.run(
                 engine.send_turn("How does @pinecone_notes.md work with serverless namespaces?")
             )
 
         assert reply == "Using Pinecone."
-        sent_messages = captured_payload["messages"]
-        combined_system = "\n".join(m["content"] for m in sent_messages if m["role"] == "system")
+        sent_messages = fake_model.captured_messages[0]
+        combined_system = "\n".join(str(m.content) for m in sent_messages if m.type == "system")
         assert "pinecone_notes.md" in combined_system
 
 
 class TestRagCli:
-    """Tests for valkyrie rag CLI subcommands."""
+    """Tests for valkyria rag CLI subcommands."""
 
     def test_rag_status_and_help(self, tmp_path: Path, monkeypatch: Any) -> None:
         monkeypatch.delenv("PINECONE_API_KEY", raising=False)
         with (
-            patch("valkyrie.cli.rag_commands.detect_workspace_root", return_value=tmp_path),
-            patch("valkyrie.rag.embeddings.get_config_dir", return_value=tmp_path),
-            patch("valkyrie.core.config.get_config_path", return_value=tmp_path / "cfg.json"),
+            patch("valkyria.cli.rag_commands.detect_workspace_root", return_value=tmp_path),
+            patch("valkyria.rag.embeddings.get_config_dir", return_value=tmp_path),
+            patch("valkyria.core.config.get_config_path", return_value=tmp_path / "cfg.json"),
         ):
             runner = CliRunner()
             res_help = runner.invoke(cli, ["rag", "--help"])
@@ -274,7 +290,7 @@ class TestRagCli:
 
             res_status = runner.invoke(cli, ["rag", "status"])
             assert res_status.exit_code == 0
-            assert "valkyrie-rag" in res_status.output
+            assert "valkyria-rag" in res_status.output
             assert "missing" in res_status.output
             assert "Pinecone DB only" in res_status.output
 

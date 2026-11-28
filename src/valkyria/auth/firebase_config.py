@@ -1,30 +1,27 @@
-"""
-Firebase project configuration for Valkyrie CLI.
-
-These are public-facing Firebase config values (safe to commit).
-The Web API Key is NOT a secret — it identifies the Firebase project
-for client-side auth calls, same as it would in a web app's HTML.
-"""
+"""Public Firebase project identifiers and the hosted authentication URL."""
 
 import os
+from urllib.parse import urlsplit
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Firebase project: valkyria CLI (filum-708c0) ───────────────────────────
 
 FIREBASE_CONFIG = {
-    "apiKey": "REDACTED_FIREBASE_API_KEY",
     "authDomain": "filum-708c0.firebaseapp.com",
     "projectId": "filum-708c0",
     "storageBucket": "filum-708c0.firebasestorage.app",
     "messagingSenderId": "496089235861",
-    "appId": "1:496089235861:web:f709d081fc867d9f3ab69c",
+    "appId": "1:496089235861:web:c519aadaaf3e02203ab69c",
+    "measurementId": "G-5XCHKRN258",
 }
 
-# Hosted web login page URL (override with VALKYRIE_AUTH_URL for local testing)
-AUTH_WEB_URL = os.environ.get("VALKYRIE_AUTH_URL", "https://valkyrie-cli.vercel.app/login")
-
-# Firebase Auth REST API (Identity Toolkit v1)
-FIREBASE_AUTH_BASE = "https://identitytoolkit.googleapis.com/v1"
-FIREBASE_TOKEN_BASE = "https://securetoken.googleapis.com/v1"
+# Hosted web login page URL (override with VALKYRIA_AUTH_URL for local testing)
+AUTH_WEB_URL = os.environ.get("VALKYRIA_AUTH_URL", "https://valkyria-cli.vercel.app/login")
+_auth_web_parts = urlsplit(AUTH_WEB_URL)
+AUTH_API_BASE = f"{_auth_web_parts.scheme}://{_auth_web_parts.netloc}/api/auth"
 
 # Local OAuth callback server
 OAUTH_CALLBACK_HOST = "127.0.0.1"

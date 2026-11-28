@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from valkyrie.auth.firebase_config import FIREBASE_CONFIG
+from valkyria.auth.firebase_config import FIREBASE_CONFIG
 
 # Firestore REST API base
 _FIRESTORE_BASE = (

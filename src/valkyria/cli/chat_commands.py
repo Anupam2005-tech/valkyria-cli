@@ -6,15 +6,15 @@ from __future__ import annotations
 
 import click
 
-from valkyrie.chat.engine import ChatEngine, build_system_prompt, run_chat_repl
-from valkyrie.chat.messages import ChatMessage, MessageRole
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.core.console import console, print_error, print_info, print_rule
-from valkyrie.core.workspace import detect_workspace_root
-from valkyrie.providers.registry import PROVIDERS, ModelRegistry
-from valkyrie.sessions.store import SessionStore
-from valkyrie.vault.prompt import verify_and_prompt
-from valkyrie.vault.store import get_key, vault_exists
+from valkyria.chat.engine import ChatEngine, build_system_prompt, run_chat_repl
+from valkyria.chat.messages import ChatMessage, MessageRole
+from valkyria.core.config import ValkyriaConfig
+from valkyria.core.console import console, print_error, print_info, print_rule
+from valkyria.core.workspace import detect_workspace_root
+from valkyria.providers.registry import PROVIDERS, ModelRegistry
+from valkyria.sessions.store import SessionStore
+from valkyria.vault.prompt import verify_and_prompt
+from valkyria.vault.store import get_key, vault_exists
 
 
 @click.command()
@@ -39,7 +39,7 @@ from valkyrie.vault.store import get_key, vault_exists
 )
 def chat(model_override: str | None, force_new: bool, session_id: str | None) -> None:
     """Start or resume an interactive chat session."""
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     registry = ModelRegistry.load_cache()
     store = SessionStore()
     ws_root = detect_workspace_root()
@@ -63,8 +63,8 @@ def chat(model_override: str | None, force_new: bool, session_id: str | None) ->
         print_rule("Chat")
         print_error("No chat model configured.")
         print_info(
-            "Run [bold]valkyrie setup[/bold] or "
-            "[bold]valkyrie model set chat <provider>/<model>[/bold]."
+            "Run [bold]valkyria setup[/bold] or "
+            "[bold]valkyria model set chat <provider>/<model>[/bold]."
         )
         console.print()
         raise SystemExit(1)
@@ -74,7 +74,7 @@ def chat(model_override: str | None, force_new: bool, session_id: str | None) ->
         raise SystemExit(1)
 
     if not vault_exists():
-        print_error("No key vault found. Run [bold]valkyrie keys add[/bold] first.")
+        print_error("No key vault found. Run [bold]valkyria keys add[/bold] first.")
         raise SystemExit(1)
 
     console.print()

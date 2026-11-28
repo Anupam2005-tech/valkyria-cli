@@ -1,5 +1,5 @@
 """
-Package manager tool for Valkyrie.
+Package manager tool for Valkyria.
 
 Provides a safe, approval-gated interface for installing, uninstalling, and
 listing packages via pip, pipx, uv, npm/npx, cargo, brew, and apt/apt-get.
@@ -16,17 +16,17 @@ Design
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool, tool
 
-from valkyrie.core.cards import render_tool_card
-from valkyrie.tools.run_command import run_shell_command
+from valkyria.core.cards import render_tool_card
+from valkyria.tools.run_command import run_shell_command
 
 if TYPE_CHECKING:
-    from valkyrie.tools.local_fs import ConfirmCallback
+    from pathlib import Path
+
+    from valkyria.tools.local_fs import ConfirmCallback
 
 # ---------------------------------------------------------------------------
 # Manager definitions
@@ -142,16 +142,13 @@ def _resolve_command(manager: str, action: str, packages: list[str]) -> str:
 
     if mgr not in _MANAGERS:
         raise ValueError(
-            f"Unknown package manager '{manager}'. "
-            f"Supported: {', '.join(sorted(_KNOWN_MANAGERS))}"
+            f"Unknown package manager '{manager}'. Supported: {', '.join(sorted(_KNOWN_MANAGERS))}"
         )
 
     actions = _MANAGERS[mgr]
     if act not in actions:
         supported = ", ".join(sorted(actions.keys()))
-        raise ValueError(
-            f"Action '{action}' not supported for '{manager}'. Supported: {supported}"
-        )
+        raise ValueError(f"Action '{action}' not supported for '{manager}'. Supported: {supported}")
 
     pkg_str = " ".join(packages) if packages else ""
     return actions[act].format(packages=pkg_str).strip()
@@ -168,7 +165,7 @@ def run_pkg_command(
     packages: list[str],
     *,
     workspace_root: Path,
-    confirm_fn: "ConfirmCallback | None" = None,
+    confirm_fn: ConfirmCallback | None = None,
     auto_approve: bool = False,
     timeout_seconds: int = 300,
 ) -> str:
@@ -217,7 +214,7 @@ def run_pkg_command(
 
 def make_pkg_tool(
     workspace_root: Path,
-    confirm_fn: "ConfirmCallback | None" = None,
+    confirm_fn: ConfirmCallback | None = None,
     auto_approve: bool = False,
 ) -> BaseTool:
     """Return a LangChain ``BaseTool`` for package management."""

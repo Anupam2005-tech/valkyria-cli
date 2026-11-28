@@ -1,40 +1,72 @@
-"""Tests for local machine CRUD tools, LangChain DuckDuckGo web search, & agent tool loop."""
+"""Tests for local machine CRUD tools, DuckDuckGo search, & LangGraph agent tool loop."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
-from valkyrie.chat.engine import ChatEngine, _handle_slash_command
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.providers.registry import ModelRegistry
-from valkyrie.rag.embeddings import resolve_pinecone_api_key, resolve_pinecone_config
-from valkyrie.tools.registry import AgentToolset
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+from pydantic import Field
+
+from valkyria.chat.engine import ChatEngine, _handle_slash_command
+from valkyria.core.config import ValkyriaConfig
+from valkyria.providers.registry import ModelRegistry
+from valkyria.rag.embeddings import resolve_pinecone_api_key, resolve_pinecone_config
+from valkyria.tools.registry import AgentToolset
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
     from pathlib import Path
 
 
-class _FakeStreamResponse:
-    def __init__(self, lines: list[str], status_code: int = 200) -> None:
-        self._lines = lines
-        self.status_code = status_code
+class _FakeToolChatModel(BaseChatModel):
+    scripted: list[list[AIMessageChunk]] = Field(default_factory=list)
 
-    async def __aenter__(self) -> _FakeStreamResponse:
+    @property
+    def _llm_type(self) -> str:
+        return "fake-tool-model"
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> _FakeToolChatModel:
         return self
 
-    async def __aexit__(self, *args: object) -> None:
-        return None
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        chunks = self.scripted.pop(0)
+        merged = chunks[0]
+        for nxt in chunks[1:]:
+            merged = merged + nxt
+        return ChatResult(
+            generations=[
+                ChatGeneration(
+                    message=AIMessage(
+                        content=merged.content,
+                        tool_calls=merged.tool_calls,
+                        usage_metadata=merged.usage_metadata,
+                    )
+                )
+            ]
+        )
 
-    async def aread(self) -> bytes:
-        return b""
-
-    async def aiter_lines(self) -> AsyncIterator[str]:
-        for line in self._lines:
-            yield line
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        chunks = self.scripted.pop(0)
+        for chunk in chunks:
+            if run_manager and chunk.text:
+                await run_manager.on_llm_new_token(chunk.text, chunk=chunk)
+            yield ChatGenerationChunk(message=chunk)
 
 
 class TestAppOwnedPineconeEnv:
@@ -51,8 +83,8 @@ class TestAppOwnedPineconeEnv:
         other_ws = tmp_path / "user_project"
         other_ws.mkdir()
 
-        monkeypatch.setattr("valkyrie.rag.embeddings._APP_ROOT", app_root)
-        cfg = ValkyrieConfig()
+        monkeypatch.setattr("valkyria.rag.embeddings._APP_ROOT", app_root)
+        cfg = ValkyriaConfig()
 
         assert resolve_pinecone_api_key(other_ws) == "pcsk_app_owner_999"
         resolved_cfg = resolve_pinecone_config(cfg, other_ws)
@@ -67,7 +99,6 @@ class TestLocalMachineCrudAndWebTools:
         ws.mkdir()
         toolset = AgentToolset(workspace_root=ws)
 
-        # Create file (including parent dirs)
         ok, msg = toolset.execute(
             "write_file",
             {"path": "notes/hello.md", "content": "# Hello\nInitial line\n"},
@@ -77,12 +108,10 @@ class TestLocalMachineCrudAndWebTools:
         target = ws / "notes" / "hello.md"
         assert target.exists()
 
-        # Read file
         ok_r, txt = toolset.execute("read_file", {"path": "notes/hello.md"})
         assert ok_r is True
         assert "Initial line" in txt
 
-        # Update / edit file
         ok_e, emsg = toolset.execute(
             "edit_file",
             {
@@ -95,7 +124,6 @@ class TestLocalMachineCrudAndWebTools:
         assert "1 replacement(s)" in emsg
         assert "Updated line" in target.read_text()
 
-        # List directory & search files
         ok_l, ltxt = toolset.execute("list_directory", {"path": "notes"})
         assert ok_l is True
         assert "hello.md" in ltxt
@@ -104,13 +132,11 @@ class TestLocalMachineCrudAndWebTools:
         assert ok_s is True
         assert "notes/hello.md" in stxt
 
-        # Delete file
         ok_d, dmsg = toolset.execute("delete_file", {"path": "notes/hello.md"})
         assert ok_d is True
         assert "Deleted" in dmsg
         assert not target.exists()
 
-        # Protected system & credential paths must be blocked
         ok_sec, sec_msg = toolset.execute("read_file", {"path": "/etc/passwd"})
         assert ok_sec is False
         assert "Blocked" in sec_msg
@@ -134,7 +160,7 @@ class TestLocalMachineCrudAndWebTools:
                 "snippet": "Latest Python runtime details.",
             }
         ]
-        with patch("valkyrie.tools.web_search.run_duckduckgo_search", return_value=fake_results):
+        with patch("valkyria.tools.web_search.run_duckduckgo_search", return_value=fake_results):
             ok, out = toolset.execute("web_search", {"query": "python 3.13"})
         assert ok is True
         assert "Python 3.13 Release" in out
@@ -142,7 +168,7 @@ class TestLocalMachineCrudAndWebTools:
 
 
 class TestAgentToolLoop:
-    """End-to-end streaming tool call loop across Gemini and OpenAI/Groq SSE."""
+    """End-to-end LangGraph tool-calling loop across Gemini, Groq, and safety-gate interrupts."""
 
     def test_gemini_creates_file_via_tool_call_loop(self, tmp_path: Path) -> None:
         ws = tmp_path / "ws"
@@ -150,7 +176,7 @@ class TestAgentToolLoop:
         downloads_file = tmp_path / "Downloads" / "hello.md"
 
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={"gemini": "AIza_test"},
             initial_model="gemini/gemini-3.8-flash",
@@ -158,58 +184,47 @@ class TestAgentToolLoop:
             auto_approve_tools=True,
         )
 
-        # Turn 1: Gemini emits a functionCall to write_file
-        step1_payload = {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
+        fake_model = _FakeToolChatModel(
+            scripted=[
+                [
+                    AIMessageChunk(
+                        content="",
+                        tool_calls=[
                             {
-                                "functionCall": {
-                                    "name": "write_file",
-                                    "args": {
-                                        "path": str(downloads_file),
-                                        "content": "# Hello from Valkyrie\n",
-                                    },
-                                }
+                                "id": "gemini_call_1",
+                                "name": "write_file",
+                                "args": {
+                                    "path": str(downloads_file),
+                                    "content": "# Hello from Valkyria\n",
+                                },
                             }
-                        ]
-                    }
-                }
-            ],
-            "usageMetadata": {"promptTokenCount": 40, "candidatesTokenCount": 12},
-        }
-        step1_lines = [f"data: {json.dumps(step1_payload)}"]
-        # Turn 2: Gemini responds after observing tool execution result
-        step2_payload = {
-            "candidates": [
-                {
-                    "content": {"parts": [{"text": "Created hello.md!"}]},
-                    "finishReason": "STOP",
-                }
-            ],
-            "usageMetadata": {"promptTokenCount": 75, "candidatesTokenCount": 8},
-        }
-        step2_lines = [f"data: {json.dumps(step2_payload)}"]
+                        ],
+                        usage_metadata={
+                            "input_tokens": 40,
+                            "output_tokens": 12,
+                            "total_tokens": 52,
+                        },
+                    )
+                ],
+                [
+                    AIMessageChunk(
+                        content="Created hello.md!",
+                        usage_metadata={"input_tokens": 75, "output_tokens": 8, "total_tokens": 83},
+                    )
+                ],
+            ]
+        )
 
-        fake_client = MagicMock()
-        fake_client.__aenter__.return_value = fake_client
-        fake_client.__aexit__.return_value = None
-        fake_client.stream.side_effect = [
-            _FakeStreamResponse(step1_lines),
-            _FakeStreamResponse(step2_lines),
-        ]
-
-        with patch("valkyrie.chat.clients.httpx.AsyncClient", return_value=fake_client):
+        with patch("valkyria.chat.clients.build_chat_model", return_value=fake_model):
             reply = asyncio.run(engine.send_turn("in the download folder create a hello.md file"))
 
         assert reply == "Created hello.md!"
         assert downloads_file.exists()
-        assert downloads_file.read_text() == "# Hello from Valkyrie\n"
+        assert downloads_file.read_text() == "# Hello from Valkyria\n"
 
     def test_slash_web_and_slash_auto_commands(self, tmp_path: Path) -> None:
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={"groq": "gsk_test"},
             initial_model="groq/openai/gpt-oss-120b",
@@ -223,15 +238,15 @@ class TestAgentToolLoop:
         fake_results = [
             {"title": "DuckDuckGo", "link": "https://duckduckgo.com", "snippet": "Private search"}
         ]
-        with patch("valkyrie.chat.engine.run_duckduckgo_search", return_value=fake_results):
-            assert _handle_slash_command("/web valkyrie cli", engine) is True
+        with patch("valkyria.chat.engine.run_duckduckgo_search", return_value=fake_results):
+            assert _handle_slash_command("/web valkyria cli", engine) is True
 
     def test_openai_groq_tool_call_delta_assembly(self, tmp_path: Path) -> None:
         ws = tmp_path / "ws"
         ws.mkdir()
         (ws / "note.txt").write_text("alpha beta")
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={"groq": "gsk_test"},
             initial_model="groq/openai/gpt-oss-120b",
@@ -239,41 +254,96 @@ class TestAgentToolLoop:
             auto_approve_tools=True,
         )
 
-        # Simulated chunked tool_call deltas followed by final answer
-        step1_lines = [
-            (
-                'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1",'
-                '"function":{"name":"edit_","arguments":"{\\"path\\": \\"note.txt\\","}}]}}]}'
-            ),
-            (
-                'data: {"choices":[{"delta":{"tool_calls":[{"index":0,'
-                '"function":{"name":"file","arguments":"\\"target\\": \\"beta\\", '
-                '\\"replacement\\": \\"gamma\\"}"}}]},"finish_reason":"tool_calls"}]}'
-            ),
-            'data: {"choices":[],"usage":{"prompt_tokens":20,"completion_tokens":10}}',
-            "data: [DONE]",
-        ]
-        step2_lines = [
-            (
-                'data: {"choices":[{"delta":{"content":"Updated note.txt to alpha gamma."},'
-                '"finish_reason":"stop"}]}'
-            ),
-            'data: {"choices":[],"usage":{"prompt_tokens":35,"completion_tokens":8}}',
-            "data: [DONE]",
-        ]
-        fake_client = MagicMock()
-        fake_client.__aenter__.return_value = fake_client
-        fake_client.__aexit__.return_value = None
-        fake_client.stream.side_effect = [
-            _FakeStreamResponse(step1_lines),
-            _FakeStreamResponse(step2_lines),
-        ]
+        fake_model = _FakeToolChatModel(
+            scripted=[
+                [
+                    AIMessageChunk(
+                        content="",
+                        tool_call_chunks=[
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "name": "edit_",
+                                "args": '{"path": "note.txt",',
+                            }
+                        ],
+                    ),
+                    AIMessageChunk(
+                        content="",
+                        tool_call_chunks=[
+                            {
+                                "index": 0,
+                                "id": None,
+                                "name": "file",
+                                "args": ' "target": "beta", "replacement": "gamma"}',
+                            }
+                        ],
+                        usage_metadata={
+                            "input_tokens": 20,
+                            "output_tokens": 10,
+                            "total_tokens": 30,
+                        },
+                    ),
+                ],
+                [
+                    AIMessageChunk(
+                        content="Updated note.txt to alpha gamma.",
+                        usage_metadata={"input_tokens": 35, "output_tokens": 8, "total_tokens": 43},
+                    )
+                ],
+            ]
+        )
 
-        with patch("valkyrie.chat.clients.httpx.AsyncClient", return_value=fake_client):
+        with patch("valkyria.chat.clients.build_chat_model", return_value=fake_model):
             reply = asyncio.run(engine.send_turn("change beta to gamma in note.txt"))
 
         assert reply == "Updated note.txt to alpha gamma."
         assert (ws / "note.txt").read_text() == "alpha gamma"
+
+    def test_tool_safety_gate_interrupts_and_respects_denial(self, tmp_path: Path) -> None:
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        target = ws / "blocked.txt"
+
+        engine = ChatEngine(
+            config=ValkyriaConfig(),
+            registry=ModelRegistry(),
+            api_keys={"groq": "gsk_test"},
+            initial_model="groq/openai/gpt-oss-120b",
+            workspace_root=ws,
+            auto_approve_tools=False,
+        )
+        fake_model = _FakeToolChatModel(
+            scripted=[
+                [
+                    AIMessageChunk(
+                        content="",
+                        tool_calls=[
+                            {
+                                "id": "call_deny_1",
+                                "name": "write_file",
+                                "args": {"path": "blocked.txt", "content": "should not write"},
+                            }
+                        ],
+                    )
+                ],
+                [AIMessageChunk(content="Understood, file was not created.")],
+            ]
+        )
+
+        with (
+            patch("valkyria.chat.clients.build_chat_model", return_value=fake_model),
+            patch.object(
+                engine,
+                "_prompt_tool_batch_approval",
+                return_value={"approved_ids": [], "denied_ids": ["call_deny_1"]},
+            ) as mock_gate,
+        ):
+            reply = asyncio.run(engine.send_turn("create blocked.txt"))
+
+        mock_gate.assert_called_once()
+        assert not target.exists()
+        assert reply == "Understood, file was not created."
 
 
 class TestRunCommandAndPkgTools:
@@ -286,15 +356,15 @@ class TestRunCommandAndPkgTools:
         assert any(s["function"]["name"] == "run_command" for s in openai_specs)
         assert any(d["name"] == "pkg_install" for d in gemini_decls)
 
-        ok, out = toolset.execute("run_command", {"command": "echo valkyrie_ok"})
+        ok, out = toolset.execute("run_command", {"command": "echo valkyria_ok"})
         assert ok is True
         assert "[exit 0]" in out
-        assert "valkyrie_ok" in out
+        assert "valkyria_ok" in out
 
     def test_run_command_blocks_denylist_even_with_auto_approve(self, tmp_path: Path) -> None:
         toolset = AgentToolset(workspace_root=tmp_path, auto_approve=True)
         ok, out = toolset.execute("run_command", {"command": "rm -rf /"})
-        assert ok is True  # tool catches PermissionError and returns Error string
+        assert ok is True
         assert "Error:" in out
         assert "blocked pattern" in out
 
@@ -309,7 +379,7 @@ class TestRunCommandAndPkgTools:
         assert "User declined" in out
 
     def test_pkg_install_resolves_and_runs(self, tmp_path: Path) -> None:
-        from valkyrie.tools.pkg_manager import _resolve_command
+        from valkyria.tools.pkg_manager import _resolve_command
 
         assert _resolve_command("pip", "install", ["httpx", "rich"]) == "pip install httpx rich"
         assert _resolve_command("npm", "install", ["lodash"]) == "npm install lodash"
@@ -317,7 +387,7 @@ class TestRunCommandAndPkgTools:
 
         toolset = AgentToolset(workspace_root=tmp_path, auto_approve=True)
         fake_proc = MagicMock(returncode=0, stdout="Successfully installed httpx", stderr="")
-        with patch("valkyrie.tools.run_command.subprocess.run", return_value=fake_proc) as mock_run:
+        with patch("valkyria.tools.run_command.subprocess.run", return_value=fake_proc) as mock_run:
             ok, out = toolset.execute(
                 "pkg_install",
                 {"manager": "pip", "action": "install", "packages": ["httpx"]},
@@ -329,7 +399,7 @@ class TestRunCommandAndPkgTools:
 
     def test_slash_run_pkg_and_auto_propagation(self, tmp_path: Path) -> None:
         engine = ChatEngine(
-            config=ValkyrieConfig(),
+            config=ValkyriaConfig(),
             registry=ModelRegistry(),
             api_keys={"groq": "gsk_test"},
             initial_model="groq/openai/gpt-oss-120b",
@@ -342,7 +412,7 @@ class TestRunCommandAndPkgTools:
         assert engine.toolset.auto_approve is True
 
         fake_proc = MagicMock(returncode=0, stdout="hello_slash", stderr="")
-        with patch("valkyrie.tools.run_command.subprocess.run", return_value=fake_proc) as mock_run:
+        with patch("valkyria.tools.run_command.subprocess.run", return_value=fake_proc) as mock_run:
             keep_going = _handle_slash_command("/run echo hello_slash", engine)
             assert keep_going is True
             assert mock_run.call_args.args[0] == "echo hello_slash"

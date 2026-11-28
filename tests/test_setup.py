@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from click.testing import CliRunner
 
-from valkyrie.cli.main import cli
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.providers.base import ModelCapability, ModelInfo
+from valkyria.cli.main import cli
+from valkyria.core.config import ValkyriaConfig
+from valkyria.providers.base import ModelCapability, ModelInfo
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -35,7 +35,7 @@ def _mock_groq_provider() -> MagicMock:
 
 
 class TestSetupWizard:
-    """Tests for valkyrie setup."""
+    """Tests for valkyria setup."""
 
     def test_full_setup_wizard_local_mode(self, tmp_path: Path) -> None:
         config_file = tmp_path / "config.json"
@@ -78,14 +78,14 @@ class TestSetupWizard:
         ) + "\n"
 
         with (
-            patch("valkyrie.core.config.get_config_path", return_value=config_file),
-            patch("valkyrie.vault.store.get_vault_path", return_value=vault_file),
-            patch("valkyrie.providers.registry.get_models_cache_path", return_value=cache_file),
-            patch("valkyrie.auth.tokens.get_auth_path", return_value=auth_file),
-            patch("valkyrie.cli.setup_wizard.get_provider", return_value=mock_provider),
-            patch("valkyrie.providers.registry.get_provider", return_value=mock_provider),
+            patch("valkyria.core.config.get_config_path", return_value=config_file),
+            patch("valkyria.vault.store.get_vault_path", return_value=vault_file),
+            patch("valkyria.providers.registry.get_models_cache_path", return_value=cache_file),
+            patch("valkyria.auth.tokens.get_auth_path", return_value=auth_file),
+            patch("valkyria.cli.setup_wizard.get_provider", return_value=mock_provider),
+            patch("valkyria.providers.registry.get_provider", return_value=mock_provider),
             patch.dict(
-                "valkyrie.providers.registry.PROVIDERS",
+                "valkyria.providers.registry.PROVIDERS",
                 {"groq": mock_provider},
                 clear=True,
             ),
@@ -97,7 +97,7 @@ class TestSetupWizard:
             assert "Privacy Summary" in result.output
             assert "Configuration saved" in result.output
 
-            cfg = ValkyrieConfig.load()
+            cfg = ValkyriaConfig.load()
             assert cfg.first_run_complete is True
             assert cfg.profile.name == "Anupam"
             assert cfg.profile.profession == "Developer"
@@ -135,14 +135,14 @@ class TestSetupWizard:
         ) + "\n"
 
         with (
-            patch("valkyrie.core.config.get_config_path", return_value=config_file),
-            patch("valkyrie.vault.store.get_vault_path", return_value=vault_file),
-            patch("valkyrie.providers.registry.get_models_cache_path", return_value=cache_file),
-            patch("valkyrie.auth.tokens.get_auth_path", return_value=auth_file),
-            patch("valkyrie.cli.setup_wizard.get_provider", return_value=mock_provider),
-            patch("valkyrie.providers.registry.get_provider", return_value=mock_provider),
+            patch("valkyria.core.config.get_config_path", return_value=config_file),
+            patch("valkyria.vault.store.get_vault_path", return_value=vault_file),
+            patch("valkyria.providers.registry.get_models_cache_path", return_value=cache_file),
+            patch("valkyria.auth.tokens.get_auth_path", return_value=auth_file),
+            patch("valkyria.cli.setup_wizard.get_provider", return_value=mock_provider),
+            patch("valkyria.providers.registry.get_provider", return_value=mock_provider),
             patch.dict(
-                "valkyrie.providers.registry.PROVIDERS",
+                "valkyria.providers.registry.PROVIDERS",
                 {"groq": mock_provider},
                 clear=True,
             ),
@@ -156,7 +156,7 @@ class TestSetupWizard:
 
     def test_top_level_logout_alias(self, tmp_path: Path) -> None:
         auth_file = tmp_path / "auth.json"
-        with patch("valkyrie.auth.tokens.get_auth_path", return_value=auth_file):
+        with patch("valkyria.auth.tokens.get_auth_path", return_value=auth_file):
             runner = CliRunner()
             result = runner.invoke(cli, ["logout"])
             assert result.exit_code == 0

@@ -1,19 +1,21 @@
 """
 Shared account lifecycle operations — login, switch, logout, status, and deletion.
 
-Used by both the `valkyrie auth` CLI commands and the in-chat `/account` slash command.
+Used by both the `valkyria auth` CLI commands and the in-chat `/account` slash command.
 """
 
 from __future__ import annotations
 
 import time
 import webbrowser
+from secrets import token_urlsafe
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import click
 
-from valkyrie.auth.firebase_config import AUTH_WEB_URL
-from valkyrie.auth.server import run_auth_server
-from valkyrie.auth.tokens import (
+from valkyria.auth.firebase_config import AUTH_WEB_URL
+from valkyria.auth.server import run_auth_server
+from valkyria.auth.tokens import (
     AuthUser,
     clear_auth,
     delete_firebase_account,
@@ -21,8 +23,8 @@ from valkyrie.auth.tokens import (
     load_auth,
     save_auth,
 )
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.core.console import (
+from valkyria.core.config import ValkyriaConfig
+from valkyria.core.console import (
     console,
     print_error,
     print_info,
@@ -31,21 +33,31 @@ from valkyrie.core.console import (
     print_success,
     print_warning,
 )
-from valkyrie.core.paths import get_vault_path
-from valkyrie.vault.store import save_vault_blob, vault_exists
-from valkyrie.vault.sync import delete_remote_vault, pull_vault
+from valkyria.core.paths import get_vault_path
+from valkyria.vault.store import save_vault_blob, vault_exists
+from valkyria.vault.sync import delete_remote_vault, pull_vault
 
 
 def _run_browser_oauth(*, select_account: bool = False) -> AuthUser | None:
     """Open the browser OAuth flow, wait for callback, and persist tokens."""
-    login_url = f"{AUTH_WEB_URL}?select_account=1" if select_account else AUTH_WEB_URL
+    state = token_urlsafe(32)
+    parts = urlsplit(AUTH_WEB_URL)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.update({"cli": "1", "state": state})
+    if select_account:
+        query["select_account"] = "1"
+    login_url = urlunsplit(parts._replace(query=urlencode(query)))
     print_info("Opening your browser for Google sign-in.")
     print_info(f"If it doesn't open, visit: [accent]{login_url}[/accent]")
     print_info("[dim]Waiting for authentication...[/dim]")
     console.print()
 
-    webbrowser.open(login_url)
-    result = run_auth_server(timeout=300.0, select_account=select_account)
+    result = run_auth_server(
+        timeout=300.0,
+        select_account=select_account,
+        expected_state=state,
+        on_ready=lambda: webbrowser.open(login_url),
+    )
     if result is None:
         print_error("Authentication timed out or was cancelled.")
         return None
@@ -62,7 +74,7 @@ def login_account(*, select_account: bool = False) -> AuthUser | None:
         console.print()
         print_info(f"Already signed in as [bold]{existing.email}[/bold].")
         print_info(
-            "Run [bold]/account switch[/bold] or [bold]valkyrie auth switch[/bold] "
+            "Run [bold]/account switch[/bold] or [bold]valkyria auth switch[/bold] "
             "to change accounts."
         )
         console.print()
@@ -116,7 +128,7 @@ def switch_account(*, interactive: bool = True) -> AuthUser | None:
         )
         if should_pull:
             save_vault_blob(remote_blob)
-            cfg = ValkyrieConfig.load()
+            cfg = ValkyriaConfig.load()
             cfg.sync_enabled = True
             cfg.save()
             print_success("Pulled encrypted vault for switched account.")
@@ -127,7 +139,7 @@ def switch_account(*, interactive: bool = True) -> AuthUser | None:
 
 
 def logout_account() -> bool:
-    """Sign out locally and clear ~/.valkyrie/auth.json."""
+    """Sign out locally and clear ~/.valkyria/auth.json."""
     user = load_auth()
     if user is None:
         console.print()
@@ -157,7 +169,7 @@ def delete_account(*, assume_yes: bool = False, purge_local: bool = False) -> bo
         if stale is not None:
             print_error(
                 "Stored authentication token expired and could not be refreshed. "
-                "Run '/account switch' (or 'valkyrie auth switch') to re-authenticate first."
+                "Run '/account switch' (or 'valkyria auth switch') to re-authenticate first."
             )
         else:
             print_info("Not signed in. No account to delete.")
@@ -191,7 +203,7 @@ def delete_account(*, assume_yes: bool = False, purge_local: bool = False) -> bo
         return False
 
     clear_auth()
-    cfg = ValkyrieConfig.load()
+    cfg = ValkyriaConfig.load()
     cfg.sync_enabled = False
     cfg.save()
 
@@ -214,7 +226,7 @@ def delete_account(*, assume_yes: bool = False, purge_local: bool = False) -> bo
 def show_account_status() -> None:
     """Display active signed-in account, token status, and vault sync state."""
     user = load_auth()
-    cfg = ValkyrieConfig.load()
+    cfg = ValkyriaConfig.load()
 
     console.print()
     print_rule("Authentication")
@@ -224,7 +236,7 @@ def show_account_status() -> None:
         print_kv("Status", "[yellow]not signed in[/yellow]")
         print_kv("Sync", "disabled (local-only mode)")
         print_info(
-            "Run [bold]/account login[/bold] or [bold]valkyrie auth login[/bold] to sign in."
+            "Run [bold]/account login[/bold] or [bold]valkyria auth login[/bold] to sign in."
         )
     else:
         expired = user.is_expired

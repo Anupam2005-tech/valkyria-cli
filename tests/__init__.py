@@ -1,2 +1,2 @@
-"""Tests for Valkyrie CLI."""
+"""Tests for Valkyria CLI."""
 

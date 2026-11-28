@@ -30,14 +30,15 @@
   --sun-soft:        rgba(255, 201, 41, 0.10);
   --on-sun:          #1C1D20;
 
-  /* Single unified typography via next/font/google */
+  /* Typography via next/font/google */
   --font-display: var(--font-montserrat), system-ui, sans-serif;
   --font-sans:    var(--font-montserrat), system-ui, sans-serif;
-  --font-mono:    var(--font-montserrat), system-ui, sans-serif;
-  --font-tech:    var(--font-montserrat), system-ui, sans-serif;
+  --font-mono:    var(--font-mono-google), ui-monospace, "SF Mono", monospace;
+  --font-tech:    var(--font-mono-google), ui-monospace, "SF Mono", monospace;
+  --font-accent:  var(--font-serif-google), Georgia, serif;
 
   /* Motion */
-  --ease-valkyrie: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-valkyria: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html,
@@ -46,7 +47,7 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   scroll-behavior: auto;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -113,14 +114,33 @@ h1, h2, h3, h4 {
   font-variant-numeric: tabular-nums;
 }
 
+@keyframes vk-marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.vk-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: vk-marquee-scroll 34s linear infinite;
+}
+
+.vk-marquee:hover .vk-marquee-track {
+  animation-play-state: paused;
+}
+
 /* Surface & border primitives */
 .vk-card {
   border: 1px solid var(--line);
   border-radius: 16px;
   background-color: var(--graphite-900);
   transition:
-    border-color 0.25s var(--ease-valkyrie),
-    background-color 0.25s var(--ease-valkyrie);
+    border-color 0.25s var(--ease-valkyria),
+    background-color 0.25s var(--ease-valkyria);
 }
 
 .vk-card:hover {

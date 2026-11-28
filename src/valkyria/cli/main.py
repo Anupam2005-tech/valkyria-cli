@@ -1,5 +1,5 @@
 """
-Valkyrie CLI — main entry point.
+Valkyria CLI — main entry point.
 
 This module defines the root Click command group and wires up all subcommands.
 """
@@ -8,8 +8,8 @@ import sys
 
 import click
 
-from valkyrie import __version__
-from valkyrie.core.console import console, print_banner, print_info, print_warning
+from valkyria import __version__
+from valkyria.core.console import console, print_banner, print_info, print_warning
 
 _CLI_ALIASES = {
     "c": "chat",
@@ -41,18 +41,18 @@ class _AliasedGroup(click.Group):
 
 
 @click.group(cls=_AliasedGroup, invoke_without_command=True)
-@click.version_option(__version__, prog_name="valkyrie")
+@click.version_option(__version__, prog_name="valkyria")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-    """Valkyrie — a precise, fast terminal AI workspace."""
+    """Valkyria — a precise, fast terminal AI workspace."""
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
-        from valkyrie.auth.tokens import load_auth
-        from valkyrie.core.config import ValkyrieConfig
+        from valkyria.auth.tokens import load_auth
+        from valkyria.core.config import ValkyriaConfig
 
-        config = ValkyrieConfig.load()
+        config = ValkyriaConfig.load()
         if config.is_first_run and sys.stdin.isatty():
-            from valkyrie.cli.setup_wizard import run_setup_wizard
+            from valkyria.cli.setup_wizard import run_setup_wizard
 
             run_setup_wizard()
             return
@@ -61,19 +61,19 @@ def cli(ctx: click.Context) -> None:
 
         if config.is_first_run:
             print_warning(
-                "First-run setup is incomplete. Run [bold]valkyrie setup[/bold] to configure."
+                "First-run setup is incomplete. Run [bold]valkyria setup[/bold] to configure."
             )
         else:
             user = load_auth()
             if user is None:
                 print_info(
-                    "Running in local-only mode. Run [bold]valkyrie login[/bold] to enable sync."
+                    "Running in local-only mode. Run [bold]valkyria login[/bold] to enable sync."
                 )
             else:
                 print_info(f"Signed in as [bold]{user.email}[/bold]")
 
         console.print(
-            "\n  Type [bold]valkyrie --help[/bold] to see available commands.\n",
+            "\n  Type [bold]valkyria --help[/bold] to see available commands.\n",
             style="dim",
         )
 
@@ -81,15 +81,15 @@ def cli(ctx: click.Context) -> None:
 @cli.command()
 def status() -> None:
     """Show current authentication and configuration status."""
-    from valkyrie.auth.tokens import load_auth
-    from valkyrie.core.config import ValkyrieConfig
-    from valkyrie.core.paths import get_config_dir
+    from valkyria.auth.tokens import load_auth
+    from valkyria.core.config import ValkyriaConfig
+    from valkyria.core.paths import get_config_dir
 
     config_dir = get_config_dir()
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     user = load_auth()
 
-    from valkyrie.core.console import print_kv, print_rule
+    from valkyria.core.console import print_kv, print_rule
 
     console.print()
     print_rule("Status")
@@ -126,15 +126,15 @@ def status() -> None:
     )
     print_kv("First run", first_run_str)
 
-    from valkyrie.core.paths import get_sessions_db_path
-    from valkyrie.core.workspace import detect_workspace_root
+    from valkyria.core.paths import get_sessions_dir
+    from valkyria.core.workspace import detect_workspace_root
 
     ws_root = detect_workspace_root()
     print_kv("Workspace", f"[dim]{ws_root}[/dim]")
     print_kv("Vector DB", f"Pinecone ({config.pinecone.index_name})")
 
-    if get_sessions_db_path().exists():
-        from valkyrie.sessions.store import SessionStore
+    if any(get_sessions_dir().glob("*.json")):
+        from valkyria.sessions.store import SessionStore
 
         latest = SessionStore().get_latest_session(workspace_root=str(ws_root))
         if latest is not None:
@@ -151,13 +151,13 @@ def status() -> None:
 
 # ── Register subcommand groups ──────────────────────────────────────────────
 
-from valkyrie.cli.auth_commands import auth, login, logout  # noqa: E402
-from valkyrie.cli.chat_commands import chat  # noqa: E402
-from valkyrie.cli.keys_commands import keys  # noqa: E402
-from valkyrie.cli.model_commands import model  # noqa: E402
-from valkyrie.cli.rag_commands import rag  # noqa: E402
-from valkyrie.cli.session_commands import session  # noqa: E402
-from valkyrie.cli.setup_wizard import setup  # noqa: E402
+from valkyria.cli.auth_commands import auth, login, logout  # noqa: E402
+from valkyria.cli.chat_commands import chat  # noqa: E402
+from valkyria.cli.keys_commands import keys  # noqa: E402
+from valkyria.cli.model_commands import model  # noqa: E402
+from valkyria.cli.rag_commands import rag  # noqa: E402
+from valkyria.cli.session_commands import session  # noqa: E402
+from valkyria.cli.setup_wizard import setup  # noqa: E402
 
 cli.add_command(auth)
 cli.add_command(chat)

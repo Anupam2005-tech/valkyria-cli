@@ -1,12 +1,12 @@
 """Provider module — model discovery, capabilities, and unified registry."""
 
-from valkyrie.providers.base import (
+from valkyria.providers.base import (
     ASSIGNABLE_ROLES,
     ModelCapability,
     ModelInfo,
     Provider,
 )
-from valkyrie.providers.registry import (
+from valkyria.providers.registry import (
     PROVIDERS,
     ModelRegistry,
     get_provider,

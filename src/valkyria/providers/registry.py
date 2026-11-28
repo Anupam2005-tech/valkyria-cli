@@ -11,11 +11,11 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
-from valkyrie.core.paths import get_models_cache_path
-from valkyrie.providers.base import ModelCapability, ModelInfo, Provider
-from valkyrie.providers.gemini import GeminiProvider
-from valkyrie.providers.groq import GroqProvider
-from valkyrie.providers.nvidia import NvidiaProvider
+from valkyria.core.paths import get_models_cache_path
+from valkyria.providers.base import ModelCapability, ModelInfo, Provider
+from valkyria.providers.gemini import GeminiProvider
+from valkyria.providers.groq import GroqProvider
+from valkyria.providers.nvidia import NvidiaProvider
 
 PROVIDERS: dict[str, Provider] = {
     "groq": GroqProvider(),

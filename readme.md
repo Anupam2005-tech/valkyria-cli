@@ -1,4 +1,4 @@
-# Valkyrie CLI — Product and Engineering Specification
+# Valkyria CLI — Product and Engineering Specification
 
 **Status:** Design specification  
 **Version:** 1.0 draft  
@@ -9,7 +9,7 @@
 
 ## 1. Product intent
 
-Valkyrie CLI is an AI workspace that runs in a terminal. It answers questions, helps write and edit code, searches local material, creates plans, and carries out approved tasks. Users bring API keys for Groq, Gemini, and NVIDIA. They choose the exact model used for each kind of work. The product keeps its retrieval index and execution history on the user's machine, while making every transfer to a hosted provider visible.
+Valkyria CLI is an AI workspace that runs in a terminal. It answers questions, helps write and edit code, searches local material, creates plans, and carries out approved tasks. Users bring API keys for Groq, Gemini, and NVIDIA. They choose the exact model used for each kind of work. The product keeps its retrieval index and execution history on the user's machine, while making every transfer to a hosted provider visible.
 
 The defining experience is **a precise, fast terminal tool with an editorial voice**: concise, confident, occasionally sassy, and always useful. Its interface should feel designed by people who build developer tools, not like a generic AI chat screen. The personality belongs in microcopy and rhythm, never in permission prompts, errors that need diagnosis, or safety decisions.
 
@@ -63,8 +63,8 @@ Feature flags must prevent unfinished tools from appearing as executable command
 
 ### 4.1 First run
 
-1. `valkyrie` starts and checks local configuration.
-2. If signed out, show `valkyrie login` with a short explanation of the browser handoff.
+1. `valkyria` starts and checks local configuration.
+2. If signed out, show `valkyria login` with a short explanation of the browser handoff.
 3. After login, ask which providers to connect. At least one hosted model provider is required for chat; the user may return later to add more.
 4. Read each API key with masked, no-echo input. Never put a key in a command-line argument or shell history.
 5. Validate credentials and fetch the provider catalog. Show accessible models, grouped by capability. A list result alone does not guarantee invocation rights; a low-cost probe validates the selected model when feasible.

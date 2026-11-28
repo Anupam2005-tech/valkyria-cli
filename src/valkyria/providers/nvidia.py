@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import httpx
 
-from valkyrie.providers.base import ModelCapability, ModelInfo
+from valkyria.providers.base import ModelCapability, ModelInfo
 
 NVIDIA_API_BASE = "https://integrate.api.nvidia.com/v1"
 

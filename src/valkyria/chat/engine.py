@@ -1,5 +1,5 @@
 """
-Chat engine — conversation state, context accounting, provider filtering, /model switching, & REPL.
+Chat engine — LangGraph orchestration, LangChain streaming, context accounting, and REPL.
 """
 
 from __future__ import annotations
@@ -7,9 +7,19 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
-from typing import TYPE_CHECKING
+import uuid
+from typing import TYPE_CHECKING, Any, Literal
 
 import click
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    RemoveMessage,
+    ToolMessage,
+)
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from langgraph.types import Command
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
@@ -18,17 +28,20 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from valkyrie.chat.clients import ChatStreamError, stream_chat_completion
-from valkyrie.chat.commands import SlashCommand, SlashCommandRegistry, ValkyrieCompleter
-from valkyrie.chat.messages import (
+from valkyria.chat.clients import ChatStreamError, stream_chat_completion
+from valkyria.chat.commands import SlashCommand, SlashCommandRegistry, ValkyriaCompleter
+from valkyria.chat.graph import GraphRuntime, build_agent_graph
+from valkyria.chat.messages import (
     ChatMessage,
     ContextBudget,
     MessageRole,
+    TokenUsage,
     estimate_messages_tokens,
+    to_langchain_messages,
 )
-from valkyrie.chat.renderer import render_agent_stream
-from valkyrie.core.cards import render_tool_card
-from valkyrie.core.console import (
+from valkyria.chat.renderer import NodeStreamRenderer
+from valkyria.core.cards import render_tool_card
+from valkyria.core.console import (
     console,
     print_error,
     print_info,
@@ -38,25 +51,31 @@ from valkyrie.core.console import (
     print_warning,
     render_meter,
 )
-from valkyrie.core.workspace import detect_workspace_root, list_workspace_files
-from valkyrie.providers.registry import PROVIDERS, ModelRegistry
-from valkyrie.rag.embeddings import resolve_pinecone_api_key
-from valkyrie.rag.files import read_workspace_file
-from valkyrie.rag.pipeline import (
+from valkyria.core.paths import get_checkpoints_dir
+from valkyria.core.workspace import detect_workspace_root, list_workspace_files
+from valkyria.providers.registry import PROVIDERS, ModelRegistry
+from valkyria.rag.embeddings import resolve_pinecone_api_key
+from valkyria.rag.files import read_workspace_file
+from valkyria.rag.pipeline import (
     format_rag_context,
     index_workspace_path,
     search_workspace_rag,
 )
-from valkyrie.tools.registry import AgentToolset
-from valkyrie.tools.web_search import run_duckduckgo_search
+from valkyria.sessions.checkpointer import JsonFileSaver
+from valkyria.tools.registry import AgentToolset
+from valkyria.tools.web_search import run_duckduckgo_search
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from valkyrie.core.config import ValkyrieConfig
-    from valkyrie.providers.base import ModelInfo
-    from valkyrie.rag.pinecone_store import PineconeRagStore
-    from valkyrie.sessions.store import SessionRecord, SessionStore
+    from langchain_core.runnables import RunnableConfig
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+    from langgraph.graph.state import CompiledStateGraph
+
+    from valkyria.core.config import ValkyriaConfig
+    from valkyria.providers.base import ModelInfo
+    from valkyria.rag.pinecone_store import PineconeRagStore
+    from valkyria.sessions.store import SessionRecord, SessionStore
 
 _AT_PATH_RE = re.compile(r"(?<!\S)@([A-Za-z0-9_.\-/]+)")
 
@@ -75,7 +94,7 @@ _PROMPT_STYLE = Style.from_dict(
 
 
 def build_system_prompt(
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     workspace_root: Path | None = None,
 ) -> str:
     """Build an editorial agent system prompt describing available local & web tools."""
@@ -84,7 +103,7 @@ def build_system_prompt(
     ws_hint = str(workspace_root) if workspace_root else "."
     home_downloads = str(_Path.home() / "Downloads")
     lines = [
-        "You are Valkyrie, a precise, capable terminal AI agent.",
+        "You are Valkyria, a precise, capable terminal AI agent.",
         "Keep answers direct, accurate, and formatted cleanly in Markdown.",
         "You have real tools to work on the user's local machine and search the web:",
         "- write_file / edit_file / delete_file / read_file / list_directory / search_files",
@@ -114,12 +133,12 @@ _MAX_TOOL_STEPS = 8
 
 
 class ChatEngine:
-    """Manages an interactive chat conversation, model state, tools, and context budget."""
+    """Manages an interactive chat conversation, LangGraph pipeline, tools, and context budget."""
 
     def __init__(
         self,
         *,
-        config: ValkyrieConfig,
+        config: ValkyriaConfig,
         registry: ModelRegistry,
         api_keys: dict[str, str],
         initial_model: str,
@@ -133,6 +152,7 @@ class ChatEngine:
         rag_store: PineconeRagStore | None = None,
         auto_approve_tools: bool | None = None,
         enable_tools: bool = True,
+        checkpointer: BaseCheckpointSaver[Any] | None = None,
     ) -> None:
         self.config = config
         self.registry = registry
@@ -165,9 +185,40 @@ class ChatEngine:
         self.total_prompt_tokens = total_prompt_tokens
         self.total_completion_tokens = total_completion_tokens
         self.last_suggested_model: str | None = None
+        self._thread_id = session_id or f"ephem_{uuid.uuid4().hex[:10]}"
+
+        if checkpointer is not None:
+            self.checkpointer: BaseCheckpointSaver[Any] = checkpointer
+        elif session_store is not None and session_id is not None:
+            self.checkpointer = JsonFileSaver(get_checkpoints_dir())
+        else:
+            self.checkpointer = JsonFileSaver(None)
+
+        self._runtime = GraphRuntime(
+            config=self.config,
+            api_keys=self.api_keys,
+            get_active_model=lambda: self.active_model,
+            toolset=self.toolset,
+            is_auto_approved=lambda: self.auto_approve_tools,
+            record_checkpoint=self._record_session_checkpoint,
+        )
+        self.graph: CompiledStateGraph[Any] = build_agent_graph(
+            self._runtime,
+            checkpointer=self.checkpointer,
+        )
+
+    def _record_session_checkpoint(self, tool_name: str, args: dict[str, Any]) -> None:
+        """Persist a JSON checkpoint entry in SessionStore before a mutating tool executes."""
+        if self.session_store is not None and self.session_id is not None:
+            target = str(args.get("path") or args.get("command") or "")
+            self.session_store.create_checkpoint(
+                self.session_id,
+                reason=f"tool:{tool_name}",
+                state={"tool": tool_name, "target": target},
+            )
 
     def _confirm_tool_action(self, action: str, target: str, preview: str | None) -> bool:
-        """Interactive confirmation for local file writes, edits, and deletions."""
+        """Interactive confirmation for local file writes, edits, commands, and deletions."""
         if self.auto_approve_tools or not sys.stdin.isatty():
             return True
 
@@ -182,9 +233,73 @@ class ChatEngine:
         ans = click.prompt(prompt_str, default=default_choice, show_default=False).strip().lower()
         if ans in ("a", "all", "always"):
             self.auto_approve_tools = True
+            self.toolset.set_auto_approve(True)
             print_success("Auto-approve enabled for this chat session.")
             return True
         return ans in ("y", "yes")
+
+    def _prompt_plan_approval(self, payload: dict[str, Any]) -> dict[str, str]:
+        """Prompt user to approve, edit, or deny a generated LangGraph plan."""
+        if self.auto_approve_tools or not sys.stdin.isatty():
+            return {"action": "approve"}
+
+        steps = payload.get("steps", [])
+        console.print()
+        print_rule("Plan Approval")
+        if steps:
+            for idx, step in enumerate(steps, start=1):
+                console.print(f"  [accent]{idx}.[/accent] {step}")
+            console.print()
+
+        choice = (
+            click.prompt(
+                "  ▸ Approve? [a]pprove / [e]dit / [d]eny",
+                default="a",
+                show_default=False,
+            )
+            .strip()
+            .lower()
+        )
+        if choice in ("a", "approve", "y", "yes", ""):
+            return {"action": "approve"}
+        if choice in ("e", "edit"):
+            feedback = click.prompt("  ▸ Plan feedback / changes").strip()
+            return {"action": "edit", "feedback": feedback}
+        return {"action": "deny"}
+
+    def _prompt_tool_batch_approval(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Prompt user for each mutating tool call queued behind the LangGraph safety gate."""
+        calls = payload.get("calls", [])
+        approved_ids: list[str] = []
+        denied_ids: list[str] = []
+
+        for call in calls:
+            cid = str(call.get("id", ""))
+            name = str(call.get("name", ""))
+            args = dict(call.get("args") or {})
+            target = str(
+                args.get("path")
+                or args.get("command")
+                or args.get("packages")
+                or name
+            )
+            preview: str | None = None
+            if name == "write_file":
+                content = str(args.get("content", ""))
+                lines = content.splitlines()[:8]
+                preview = "\n".join(lines) + ("\n..." if len(content.splitlines()) > 8 else "")
+            elif name == "edit_file":
+                preview = f"- {args.get('target', '')}\n+ {args.get('replacement', '')}"
+            elif name == "pkg_install":
+                pkgs = " ".join(str(p) for p in args.get("packages", []))
+                target = f"{args.get('manager', '')} {args.get('action', '')} {pkgs}".strip()
+
+            if self._confirm_tool_action(name, target, preview):
+                approved_ids.append(cid)
+            else:
+                denied_ids.append(cid)
+
+        return {"approved_ids": approved_ids, "denied_ids": denied_ids}
 
     @property
     def provider_and_model(self) -> tuple[str, str]:
@@ -232,16 +347,24 @@ class ChatEngine:
                 initial_messages=[sys_msg],
             )
             self.session_id = created.id
+            self._thread_id = created.id
+            if (
+                isinstance(self.checkpointer, JsonFileSaver)
+                and self.checkpointer.checkpoints_dir is None
+            ):
+                self.checkpointer = JsonFileSaver(get_checkpoints_dir())
+                self.graph = build_agent_graph(self._runtime, checkpointer=self.checkpointer)
             return created
 
         self.session_id = None
+        self._thread_id = f"ephem_{uuid.uuid4().hex[:10]}"
         return None
 
     def compact_context(self, *, keep_last: int = 4) -> tuple[bool, int, int]:
         """
         Compact older turns into a concise summary message, preserving recent turns.
 
-        Uses configured `summarization` model if available, falling back to deterministic
+        Uses configured `summarization` model via LangChain, falling back to deterministic
         extractive bullets when offline or unconfigured.
         """
         before_count = len(self.messages)
@@ -264,7 +387,7 @@ class ChatEngine:
         return True, before_count, len(self.messages)
 
     def _summarize_messages(self, older: list[ChatMessage]) -> str:
-        """Summarize older messages via summarization model or extractive fallback."""
+        """Summarize older messages via LangChain summarization model or extractive fallback."""
         target_model = self.config.models.summarization or self.active_model
         if "/" in target_model:
             pkey, mid = target_model.split("/", 1)
@@ -371,7 +494,7 @@ class ChatEngine:
             return (
                 False,
                 f"No API key unlocked for '{provider_key}'. "
-                f"Add it with 'valkyrie keys add {provider_key}'.",
+                f"Add it with 'valkyria keys add {provider_key}'.",
             )
 
         info = self.registry.get_model(resolved_target)
@@ -512,9 +635,29 @@ class ChatEngine:
             details=details,
         )
 
-    async def send_turn(self, user_text: str) -> str | None:
-        """Append user message, run agentic tool-calling loop, and update accounting."""
-        provider_key, model_id = self.provider_and_model
+    def _node_display_meta(
+        self,
+        node_name: str,
+        mode: Literal["direct", "plan"],
+    ) -> tuple[str, str]:
+        if node_name == "planner":
+            qid, _, _ = self._runtime.resolve_role_model("planner")
+            return qid, "planner"
+        if node_name == "evaluator":
+            qid, _, _ = self._runtime.resolve_role_model("evaluator")
+            return qid, "evaluator"
+        role = "code" if mode == "plan" else "executor"
+        qid, _, _ = self._runtime.resolve_role_model(role)
+        return qid, "executor" if mode == "plan" else "hosted stream"
+
+    async def _run_graph_turn(
+        self,
+        user_text: str,
+        *,
+        mode: Literal["direct", "plan"],
+    ) -> str | None:
+        """Execute a conversation turn or /plan run through the compiled LangGraph pipeline."""
+        provider_key, _ = self.provider_and_model
         api_key = self.api_keys.get(provider_key)
         if not api_key:
             print_error(
@@ -528,55 +671,44 @@ class ChatEngine:
             print_info(
                 f"Workspace context attached -> hosted request to [bold]{provider_key}[/bold]."
             )
+
         user_msg = ChatMessage(role=MessageRole.USER, content=user_text)
         self.messages.append(user_msg)
 
-        tools_enabled = self.enable_tools
-        final_reply: str | None = None
+        request_messages = (
+            [*self.messages[:-1], extra_ctx, user_msg]
+            if extra_ctx is not None
+            else list(self.messages)
+        )
+        lc_initial = to_langchain_messages(request_messages)
+
+        graph_input: Any = {
+            "messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES), *lc_initial],
+            "mode": mode,
+            "goal": user_text,
+            "plan_text": "",
+            "plan_steps": [],
+            "plan_approved": False,
+            "plan_cancelled": False,
+            "plan_feedback": "",
+            "iteration": 0,
+            "max_iterations": _MAX_TOOL_STEPS,
+            "eval_attempts": 0,
+            "max_eval_attempts": 1,
+            "evaluation_passed": True,
+            "evaluation_notes": "",
+            "approved_tool_call_ids": [],
+            "denied_tool_call_ids": [],
+            "tools_enabled": self.enable_tools,
+        }
+        run_config: RunnableConfig = {"configurable": {"thread_id": self._thread_id}}
+
         user_persisted = False
+        final_reply: str | None = None
+        has_any_response = False
 
-        for step in range(_MAX_TOOL_STEPS):
-            # Insert ephemeral extra_ctx just before the user message on step 0
-            if extra_ctx is not None and step == 0:
-                request_messages = [*self.messages[:-1], extra_ctx, user_msg]
-            else:
-                request_messages = self.messages
-
-            openai_tools = self.toolset.openai_tools() if tools_enabled else None
-            gemini_decls = self.toolset.gemini_declarations() if tools_enabled else None
-
-            try:
-                chunks = stream_chat_completion(
-                    provider_key=provider_key,
-                    model_id=model_id,
-                    api_key=api_key,
-                    messages=request_messages,
-                    openai_tools=openai_tools,
-                    gemini_declarations=gemini_decls,
-                )
-                reply_text, usage, tool_calls = await render_agent_stream(
-                    chunks,
-                    qualified_model=self.active_model,
-                    prompt_messages=request_messages,
-                )
-            except ChatStreamError as exc:
-                err_lower = str(exc).lower()
-                if (
-                    tools_enabled
-                    and exc.status_code == 400
-                    and any(k in err_lower for k in ("tool", "function"))
-                ):
-                    tools_enabled = False
-                    continue
-                if step == 0:
-                    self.messages.pop()
-                self._handle_stream_error(exc, provider_key)
-                return None
-
-            self.last_suggested_model = None
-            self.total_prompt_tokens += usage.prompt_tokens
-            self.total_completion_tokens += usage.completion_tokens
-
+        def _ensure_user_persisted() -> None:
+            nonlocal user_persisted
             if (
                 not user_persisted
                 and self.session_store is not None
@@ -586,35 +718,217 @@ class ChatEngine:
                 self.session_store.auto_title_if_default(self.session_id, user_text)
                 user_persisted = True
 
-            assistant_msg = ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=reply_text,
-                model=self.active_model,
-                tool_calls=[tc.to_openai_dict() for tc in tool_calls] if tool_calls else None,
-                usage=usage,
-            )
-            self.messages.append(assistant_msg)
+        def _record_message(msg: ChatMessage) -> None:
+            self.messages.append(msg)
             if self.session_store is not None and self.session_id is not None:
-                self.session_store.append_message(self.session_id, assistant_msg)
+                self.session_store.append_message(self.session_id, msg)
 
-            if not tool_calls:
-                final_reply = reply_text
+        while True:
+            active_node: str | None = None
+            active_renderer: NodeStreamRenderer | None = None
+            streamed_text_seen = False
+            pending_interrupt: dict[str, Any] | None = None
+
+            def _close_renderer(
+                tool_names: list[str] | None = None,
+                fallback_text: str = "",
+                fallback_usage: TokenUsage | None = None,
+            ) -> tuple[str, TokenUsage] | None:
+                nonlocal active_node, active_renderer, streamed_text_seen
+                if active_renderer is None:
+                    return None
+                if not streamed_text_seen and fallback_text:
+                    active_renderer.feed(fallback_text, usage=fallback_usage)
+                text_out, usage_out = active_renderer.finish(
+                    tool_names=tool_names,
+                    fallback_usage=fallback_usage,
+                )
+                active_renderer = None
+                active_node = None
+                streamed_text_seen = False
+                return text_out, usage_out
+
+            try:
+                async for item in self.graph.astream(
+                    graph_input,
+                    run_config,
+                    stream_mode=["messages", "updates"],
+                ):
+                    if not isinstance(item, tuple) or len(item) != 2:
+                        continue
+                    stream_mode, payload = item
+                    if (
+                        stream_mode == "messages"
+                        and isinstance(payload, tuple)
+                        and len(payload) == 2
+                    ):
+                        msg_chunk, meta = payload
+                        if not isinstance(meta, dict):
+                            continue
+                        node_name = str(meta.get("langgraph_node") or "")
+                        if node_name not in ("planner", "executor", "evaluator"):
+                            continue
+
+                        if active_node != node_name:
+                            _close_renderer()
+                            qid, phase = self._node_display_meta(node_name, mode)
+                            active_node = node_name
+                            active_renderer = NodeStreamRenderer(
+                                qualified_model=qid,
+                                phase=phase,
+                                prompt_messages=request_messages,
+                            )
+                            active_renderer.start()
+                            streamed_text_seen = False
+
+                        if isinstance(msg_chunk, (AIMessageChunk, AIMessage)):
+                            delta = str(msg_chunk.text) if hasattr(msg_chunk, "text") else ""
+                            usage: TokenUsage | None = None
+                            if msg_chunk.usage_metadata:
+                                usage = TokenUsage(
+                                    prompt_tokens=int(
+                                        msg_chunk.usage_metadata.get("input_tokens", 0)
+                                    ),
+                                    completion_tokens=int(
+                                        msg_chunk.usage_metadata.get("output_tokens", 0)
+                                    ),
+                                    estimated=False,
+                                )
+                            if delta:
+                                streamed_text_seen = True
+                            if active_renderer is not None and (delta or usage is not None):
+                                active_renderer.feed(delta, usage=usage)
+
+                    elif stream_mode == "updates" and isinstance(payload, dict):
+                        if "__interrupt__" in payload:
+                            _close_renderer()
+                            interrupts = payload["__interrupt__"]
+                            if interrupts:
+                                val = getattr(interrupts[0], "value", interrupts[0])
+                                pending_interrupt = (
+                                    dict(val) if isinstance(val, dict) else {"value": val}
+                                )
+                            continue
+
+                        for node_name, update_dict in payload.items():
+                            if not isinstance(update_dict, dict):
+                                continue
+
+                            if node_name == "evaluator":
+                                eval_notes = str(update_dict.get("evaluation_notes", ""))
+                                eval_passed = bool(update_dict.get("evaluation_passed", True))
+                                _close_renderer(fallback_text=eval_notes)
+                                if eval_notes:
+                                    render_tool_card(
+                                        tool="eval",
+                                        status="ok" if eval_passed else "blocked",
+                                        target="Plan Evaluation",
+                                        summary=eval_notes,
+                                    )
+                                continue
+
+                            if node_name in ("planner", "executor", "plan_safety_gate"):
+                                emitted_msgs: list[BaseMessage] = list(
+                                    update_dict.get("messages") or []
+                                )
+                                for lc_msg in emitted_msgs:
+                                    if isinstance(lc_msg, AIMessage):
+                                        qid, phase = self._node_display_meta(node_name, mode)
+                                        if (
+                                            active_renderer is None
+                                            and node_name != "plan_safety_gate"
+                                        ):
+                                            active_node = node_name
+                                            active_renderer = NodeStreamRenderer(
+                                                qualified_model=qid,
+                                                phase=phase,
+                                                prompt_messages=request_messages,
+                                            )
+                                            active_renderer.start()
+
+                                        fallback_txt = (
+                                            str(lc_msg.text)
+                                            if hasattr(lc_msg, "text")
+                                            else str(lc_msg.content)
+                                        )
+                                        fallback_usage: TokenUsage | None = None
+                                        if lc_msg.usage_metadata:
+                                            fallback_usage = TokenUsage(
+                                                prompt_tokens=int(
+                                                    lc_msg.usage_metadata.get("input_tokens", 0)
+                                                ),
+                                                completion_tokens=int(
+                                                    lc_msg.usage_metadata.get("output_tokens", 0)
+                                                ),
+                                                estimated=False,
+                                            )
+                                        tool_names = [
+                                            str(tc.get("name", ""))
+                                            for tc in (lc_msg.tool_calls or [])
+                                        ]
+                                        closed = _close_renderer(
+                                            tool_names=tool_names,
+                                            fallback_text=fallback_txt,
+                                            fallback_usage=fallback_usage,
+                                        )
+                                        usage_out = (
+                                            closed[1]
+                                            if closed is not None
+                                            else (fallback_usage or TokenUsage())
+                                        )
+                                        has_any_response = True
+                                        self.last_suggested_model = None
+                                        self.total_prompt_tokens += usage_out.prompt_tokens
+                                        self.total_completion_tokens += usage_out.completion_tokens
+
+                                        _ensure_user_persisted()
+                                        chat_msg = ChatMessage.from_langchain_message(
+                                            lc_msg,
+                                            model=qid,
+                                        )
+                                        chat_msg.usage = usage_out
+                                        _record_message(chat_msg)
+                                        if not tool_names:
+                                            final_reply = chat_msg.content
+
+                            elif node_name == "tools":
+                                _close_renderer()
+                                for lc_msg in update_dict.get("messages") or []:
+                                    if isinstance(lc_msg, ToolMessage):
+                                        _ensure_user_persisted()
+                                        _record_message(ChatMessage.from_langchain_message(lc_msg))
+
+            except ChatStreamError as exc:
+                if active_renderer is not None and active_renderer._live is not None:
+                    active_renderer._live.__exit__(None, None, None)
+                    active_renderer._live = None
+                if not has_any_response:
+                    self.messages.pop()
+                self._handle_stream_error(exc, provider_key)
+                return None
+
+            if pending_interrupt is None:
                 break
 
-            # Execute requested LangChain tools and feed results back
-            for tc in tool_calls:
-                _, output = self.toolset.execute(tc.name, tc.arguments)
-                tool_msg = ChatMessage(
-                    role=MessageRole.TOOL,
-                    name=tc.name,
-                    tool_call_id=tc.id,
-                    content=output,
-                )
-                self.messages.append(tool_msg)
-                if self.session_store is not None and self.session_id is not None:
-                    self.session_store.append_message(self.session_id, tool_msg)
+            kind = pending_interrupt.get("kind")
+            if kind == "plan_approval":
+                decision: Any = self._prompt_plan_approval(pending_interrupt)
+            elif kind == "tool_approval":
+                decision = self._prompt_tool_batch_approval(pending_interrupt)
+            else:
+                decision = True
+
+            graph_input = Command(resume=decision)
 
         return final_reply
+
+    async def send_turn(self, user_text: str) -> str | None:
+        """Append user message, run the LangGraph tool-calling workflow, and update accounting."""
+        return await self._run_graph_turn(user_text, mode="direct")
+
+    async def run_plan(self, goal: str) -> str | None:
+        """Run full Planner -> Safety Gate -> Executor -> Evaluator LangGraph flow for a goal."""
+        return await self._run_graph_turn(goal, mode="plan")
 
 
 def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
@@ -844,7 +1158,6 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
             engine.auto_approve_tools = args[0].lower() == "on"
         else:
             engine.auto_approve_tools = not engine.auto_approve_tools
-        # Propagate to run_command / pkg_install tools
         engine.toolset.set_auto_approve(engine.auto_approve_tools)
         state = (
             "ON (no confirmation prompts)"
@@ -858,12 +1171,29 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
         _handle_account_slash(args)
         return True
 
+    def cmd_plan(args: list[str]) -> bool:
+        if not args:
+            print_info("Usage: /plan <goal or task description>")
+            return True
+        goal = " ".join(args).strip()
+        asyncio.run(engine.run_plan(goal))
+        return True
+
     def cmd_exit(_args: list[str]) -> bool:
         print_info("Session closed.")
         return False
 
     reg.register(
         SlashCommand("/help", "/help", "List available commands", cmd_help, aliases=("/h", "/?"))
+    )
+    reg.register(
+        SlashCommand(
+            "/plan",
+            "/plan <goal>",
+            "Plan, approve, execute, and evaluate via LangGraph",
+            cmd_plan,
+            aliases=("/p",),
+        )
     )
     reg.register(
         SlashCommand(
@@ -994,11 +1324,9 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
         SlashCommand("/exit", "/exit", "Exit chat", cmd_exit, aliases=("/q", "/quit"))
     )
 
-    # ── /run  ────────────────────────────────────────────────────────────────
-
     def cmd_run(args: list[str]) -> bool:
         """Execute a raw shell command inside the workspace."""
-        from valkyrie.tools.run_command import run_shell_command
+        from valkyria.tools.run_command import run_shell_command
 
         if not args:
             print_info("Usage: /run <shell command>")
@@ -1025,15 +1353,10 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
         )
     )
 
-    # ── /pkg  ────────────────────────────────────────────────────────────────
-
     def cmd_pkg(args: list[str]) -> bool:
         """Install / manage packages via pip, npm, brew, cargo, apt, etc."""
-        from valkyrie.tools.pkg_manager import _KNOWN_MANAGERS, run_pkg_command
+        from valkyria.tools.pkg_manager import _KNOWN_MANAGERS, run_pkg_command
 
-        # /pkg [manager] [action] [packages…]
-        # /pkg install <name>          → auto-detect manager
-        # /pkg pip install requests
         if not args:
             print_info(
                 "Usage: /pkg [manager] <action> [packages…]\n"
@@ -1044,7 +1367,6 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
             )
             return True
 
-        # If first arg is a known manager, use it; otherwise default to pip
         if args[0].lower() in _KNOWN_MANAGERS:
             manager = args[0].lower()
             rest = args[1:]
@@ -1080,15 +1402,6 @@ def build_command_registry(engine: ChatEngine) -> SlashCommandRegistry:
         )
     )
 
-    # Upcoming Beta capabilities — hidden from normal help, non-executable
-    reg.register(
-        SlashCommand(
-            "/plan",
-            "/plan <goal>",
-            "Create a step-by-step execution plan before editing",
-            upcoming=True,
-        )
-    )
     return reg
 
 
@@ -1334,7 +1647,7 @@ def _handle_model_slash(args: list[str], engine: ChatEngine) -> None:
     if sub in ("list", "filter") or sub in PROVIDERS:
         if not engine.registry.models:
             console.print()
-            print_info("No cached models. Run '/model refresh' or 'valkyrie model refresh'.")
+            print_info("No cached models. Run '/model refresh' or 'valkyria model refresh'.")
             console.print()
             return
 
@@ -1360,7 +1673,6 @@ def _handle_model_slash(args: list[str], engine: ChatEngine) -> None:
         _attempt_model_switch(engine, args[1])
         return
 
-    # Shorthand: `/model <provider/model_id>` or `/model <bare_model_id>`
     _attempt_model_switch(engine, args[0])
 
 
@@ -1373,7 +1685,7 @@ def _handle_account_slash(args: list[str]) -> None:
       /account delete      -> delete signed-in Firebase account & remote vault
       /account logout      -> sign out locally
     """
-    from valkyrie.auth.account import (
+    from valkyria.auth.account import (
         delete_account,
         login_account,
         logout_account,
@@ -1427,7 +1739,7 @@ def _handle_account_slash(args: list[str]) -> None:
 
 
 def _render_chat_hud(engine: ChatEngine) -> None:
-    """Render the responsive startup HUD card for Valkyrie Chat."""
+    """Render the responsive startup HUD card for Valkyria Chat."""
     budget = engine.get_budget()
     ratio = (budget.used_tokens / budget.context_window) if budget.context_window else 0.0
     pc_key = resolve_pinecone_api_key(engine.workspace_root, engine.api_keys)
@@ -1450,8 +1762,8 @@ def _render_chat_hud(engine: ChatEngine) -> None:
         right = Text.from_markup(
             f"[muted]CONTEXT[/muted]    {render_meter(ratio)} [dim]{pct}[/dim]\n"
             f"[muted]VECTOR DB[/muted]  {rag_label}\n"
-            f"[muted]SHORTCUTS[/muted]  [accent]/new[/accent] · [accent]/model[/accent] · "
-            f"[accent]/account[/accent] · [accent]@file[/accent] · [accent]/exit[/accent]"
+            f"[muted]SHORTCUTS[/muted]  [accent]/plan[/accent] · [accent]/new[/accent] · "
+            f"[accent]/model[/accent] · [accent]@file[/accent] · [accent]/exit[/accent]"
         )
         grid.add_row(left, right)
     else:
@@ -1461,7 +1773,7 @@ def _render_chat_hud(engine: ChatEngine) -> None:
                 f"[muted]MODEL[/muted]   [model]{engine.active_model}[/model]\n"
                 f"[muted]BUDGET[/muted]  {budget.format_summary()}\n"
                 f"[muted]RAG[/muted]     {rag_label}\n"
-                f"[muted]CMDS[/muted]    /model · @file · /help"
+                f"[muted]CMDS[/muted]    /plan · /model · @file · /help"
             )
         )
 
@@ -1470,7 +1782,7 @@ def _render_chat_hud(engine: ChatEngine) -> None:
         Panel(
             grid,
             box=box.ROUNDED,
-            title="[heading]◆ VALKYRIE CHAT[/heading]",
+            title="[heading]◆ VALKYRIA CHAT[/heading]",
             title_align="left",
             border_style="bright_cyan",
             padding=(0, 1),
@@ -1491,14 +1803,14 @@ def _build_toolbar(engine: ChatEngine) -> HTML:
     rag_state = "pinecone:on" if engine.auto_rag else "pinecone:off"
     return HTML(
         f" <b>◆ {engine.active_model}</b> │ {ctx_str} │ {rag_state} "
-        f"│ <i>/new  /model  /web  /auto  @file  /help</i> "
+        f"│ <i>/plan  /new  /model  /web  /auto  @file  /help</i> "
     )
 
 
 def run_chat_repl(engine: ChatEngine) -> None:
     """Run the interactive terminal chat loop."""
     registry = build_command_registry(engine)
-    completer = ValkyrieCompleter(registry, engine.workspace_root, model_registry=engine.registry)
+    completer = ValkyriaCompleter(registry, engine.workspace_root, model_registry=engine.registry)
     session: PromptSession[str] = PromptSession(
         completer=completer,
         complete_while_typing=True,
@@ -1514,7 +1826,7 @@ def run_chat_repl(engine: ChatEngine) -> None:
             provider, _, model_short = engine.active_model.partition("/")
             badge = f"{provider}/{model_short}" if model_short else engine.active_model
             prompt_text = HTML(
-                f"<ansibrightcyan>◆ valkyrie</ansibrightcyan> "
+                f"<ansibrightcyan>◆ valkyria</ansibrightcyan> "
                 f"<ansibrightmagenta>[{badge}]</ansibrightmagenta> "
                 f"<b>›</b> "
             )

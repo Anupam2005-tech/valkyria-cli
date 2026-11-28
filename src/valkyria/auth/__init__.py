@@ -1,10 +1,10 @@
 """
-Auth module — Firebase Google OAuth for Valkyrie CLI.
+Auth module — Firebase Google OAuth for Valkyria CLI.
 
 Provides login (browser handoff), logout, token storage, and refresh.
 """
 
-from valkyrie.auth.tokens import (
+from valkyria.auth.tokens import (
     AuthUser,
     clear_auth,
     get_valid_user,

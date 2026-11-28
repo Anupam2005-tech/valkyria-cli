@@ -3,13 +3,13 @@
 import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, Loader2, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Copy, Loader2, ShieldCheck, Terminal } from "lucide-react";
 import Orb from "@/components/ui/orb";
 import { CardSpotlight } from "@/components/ui/card-spotlight";
 import { Logo } from "@/components/ui/Logo";
 
 const FIREBASE_CONFIG = {
-  apiKey: "REDACTED_FIREBASE_API_KEY",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
   authDomain: "filum-708c0.firebaseapp.com",
   projectId: "filum-708c0",
   storageBucket: "filum-708c0.firebasestorage.app",
@@ -46,18 +46,99 @@ function GoogleIcon() {
 
 function LoginContent() {
   const searchParams = useSearchParams();
+  const isCliFlow = searchParams.get("cli") === "1";
+  const loginState = searchParams.get("state") ?? "";
   const selectAccount =
     searchParams.get("select_account") === "1" ||
     searchParams.get("select_account") === "true";
 
   const [status, setStatus] = useState<AuthState>("idle");
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [copiedCmd, setCopiedCmd] = useState(false);
+
+  if (!isCliFlow) {
+    return (
+      <main className="relative min-h-[100dvh] w-full overflow-hidden bg-[#101113] text-[#F2F4F1] flex items-center justify-center px-4 py-8">
+        <div className="fixed inset-0 z-0 pointer-events-none">
+          <Orb
+            colors={["#FFC929", "#F2F4F1", "#1B1E24"]}
+            backgroundColor="#101113"
+            hoverIntensity={0.8}
+            trail={1}
+            glow={0.9}
+            bleed={0.75}
+            rotateOnHover
+            followCursor
+          />
+        </div>
+        <div className="relative z-10 w-full max-w-sm">
+          <CardSpotlight
+            color="#1D1F24"
+            radius={320}
+            className="p-6 sm:p-7 shadow-2xl shadow-black/60 border-[#2A2D33]"
+          >
+            <div className="flex items-center gap-3">
+              <Logo size={28} />
+              <div>
+                <h1 className="text-lg font-semibold tracking-tight text-[#F2F4F1]">
+                  Terminal sign-in only
+                </h1>
+                <p className="text-xs text-[#A2A8B0]">Valkyria CLI</p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs leading-relaxed text-[#A2A8B0]">
+              Direct browser login is disabled. Run{" "}
+              <code className="text-[#FFC929]">valkyria login</code> in your
+              terminal to open an authenticated session.
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText("valkyria login");
+                  setCopiedCmd(true);
+                  setTimeout(() => setCopiedCmd(false), 1800);
+                }}
+                className="w-full inline-flex items-center justify-between rounded-lg border border-white/15 bg-[#101113] px-3.5 py-2.5 font-mono text-xs text-[#F2F4F1] transition hover:border-[#FFC929]/50"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5 text-[#FFC929]" />
+                  $ valkyria login
+                </span>
+                {copiedCmd ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-[#6F747A]" />
+                )}
+              </button>
+
+              <Link
+                href="/"
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#26282C] bg-[#16181C]/80 px-4 py-2 text-xs font-medium text-[#A2A8B0] transition hover:text-[#F2F4F1] hover:border-[#3A3E45]"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to Valkyria
+              </Link>
+            </div>
+          </CardSpotlight>
+        </div>
+      </main>
+    );
+  }
 
   const handleGoogleSignIn = async () => {
     setStatus("loading");
     setStatusMessage("Opening Google sign-in...");
 
     try {
+      if (!loginState || !/^[A-Za-z0-9_-]{32,128}$/.test(loginState)) {
+        throw new Error("This login link is invalid. Run 'valkyria login' again.");
+      }
+      if (!FIREBASE_CONFIG.apiKey) {
+        throw new Error("Sign-in is not configured. Please contact the site owner.");
+      }
       const dynamicImport = new Function("u", "return import(u)") as (
         url: string
       ) => Promise<Record<string, unknown>>;
@@ -113,6 +194,7 @@ function LoginContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          state: loginState,
           idToken,
           refreshToken: user.refreshToken,
           uid: user.uid,
@@ -144,12 +226,12 @@ function LoginContent() {
         message = "Popup blocked. Allow popups and try again.";
       } else if (code === "auth/unauthorized-domain") {
         message =
-          "Authorize valkyrie-cli.vercel.app in Firebase Authentication settings.";
+          "Authorize valkyria-cli.vercel.app in Firebase Authentication settings.";
       } else if (
         message.includes("Failed to fetch") ||
         message.includes("NetworkError")
       ) {
-        message = "CLI listener not reachable. Run 'valkyrie login' in your terminal.";
+        message = "CLI listener not reachable. Run 'valkyria login' in your terminal.";
       }
 
       setStatus("error");
@@ -197,8 +279,8 @@ function LoginContent() {
                 {status === "success"
                   ? "Connected"
                   : selectAccount
-                    ? "Switch Valkyrie account"
-                    : "Sign in to Valkyrie"}
+                    ? "Switch Valkyria account"
+                    : "Sign in to Valkyria"}
               </h1>
               <p className="text-xs text-[#A2A8B0]">Terminal CLI</p>
             </div>

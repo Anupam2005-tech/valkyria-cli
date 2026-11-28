@@ -1,28 +1,32 @@
 """
-Streaming chat completion clients for Groq, Gemini, and NVIDIA NIM, with tool calling.
-
-Groq and NVIDIA NIM share the OpenAI SSE streaming protocol via a single helper;
-Gemini uses its streamGenerateContent?alt=sse endpoint with functionDeclarations.
+LangChain chat model factory and streaming adapter for Groq, Gemini, and NVIDIA NIM.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import httpx
+from langchain_core.messages import AIMessageChunk, BaseMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from pydantic import SecretStr
 
-from valkyrie.chat.messages import ChatMessage, MessageRole, TokenUsage
-from valkyrie.providers.gemini import GEMINI_API_BASE
-from valkyrie.providers.groq import GROQ_API_BASE
-from valkyrie.providers.nvidia import NVIDIA_API_BASE
+from valkyria.chat.messages import ChatMessage, TokenUsage, to_langchain_messages
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Sequence
+
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.runnables import Runnable
+    from langchain_core.tools import BaseTool
 
 _SUGGESTED_MODEL_RE = re.compile(r"models/([A-Za-z0-9_.\-]+)")
+_STATUS_CODE_RE = re.compile(r"\b(400|401|403|404|408|409|422|429|500|502|503|504)\b")
 
 
 class ChatStreamError(RuntimeError):
@@ -62,7 +66,7 @@ class ToolCall:
 
 @dataclass
 class StreamChunk:
-    """A single streamed event from a provider."""
+    """A single streamed event from a LangChain model."""
 
     delta: str = ""
     usage: TokenUsage | None = None
@@ -70,316 +74,115 @@ class StreamChunk:
     tool_calls: list[ToolCall] | None = None
 
 
-def _parse_provider_error(
+def build_chat_model(
     *,
     provider_key: str,
     model_id: str,
-    status_code: int,
-    raw_body: str,
-) -> ChatStreamError:
-    """Extract clean message and optional replacement suggestion from provider error JSON."""
-    clean_msg = raw_body.strip()
-    try:
-        parsed = json.loads(raw_body)
-        if isinstance(parsed, dict):
-            err_obj = parsed.get("error")
-            if isinstance(err_obj, dict) and err_obj.get("message"):
-                clean_msg = str(err_obj["message"])
-            elif parsed.get("message"):
-                clean_msg = str(parsed["message"])
-    except json.JSONDecodeError:
-        pass
+    api_key: str,
+    temperature: float = 0.7,
+    streaming: bool = True,
+) -> BaseChatModel:
+    """Instantiate the official LangChain chat model for Groq, Gemini, or NVIDIA NIM."""
+    pkey = provider_key.lower()
+    secret = SecretStr(api_key)
+    if pkey == "groq":
+        return ChatGroq(
+            model=model_id,
+            api_key=secret,
+            temperature=temperature,
+            streaming=streaming,
+        )
+    if pkey == "gemini":
+        return ChatGoogleGenerativeAI(
+            model=model_id,
+            api_key=secret,
+            temperature=temperature,
+            streaming=streaming,
+        )
+    if pkey == "nvidia":
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            return ChatNVIDIA(
+                model=model_id,
+                api_key=api_key,
+                temperature=temperature,
+            )
+    raise ChatStreamError(f"Unsupported chat provider: {provider_key}")
 
+
+def bind_model_tools(
+    model: BaseChatModel,
+    tools: Sequence[BaseTool],
+) -> Runnable[Any, BaseMessage]:
+    """Bind LangChain tools onto a BaseChatModel while quieting NIM catalog warnings."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return model.bind_tools(list(tools))
+
+
+def parse_langchain_error(
+    exc: Exception,
+    *,
+    provider_key: str,
+    model_id: str,
+) -> ChatStreamError:
+    """Normalize LangChain / provider SDK exceptions into ChatStreamError."""
+    if isinstance(exc, ChatStreamError):
+        return exc
+
+    status_code: int | None = None
+    for attr in ("status_code", "code"):
+        val = getattr(exc, attr, None)
+        if isinstance(val, int):
+            status_code = val
+            break
+    if status_code is None:
+        response = getattr(exc, "response", None)
+        resp_code = getattr(response, "status_code", None)
+        if isinstance(resp_code, int):
+            status_code = resp_code
+
+    raw_msg = str(exc).strip()
+    if status_code is None:
+        m = _STATUS_CODE_RE.search(raw_msg)
+        if m:
+            status_code = int(m.group(1))
+
+    clean_msg = raw_msg or type(exc).__name__
     if len(clean_msg) > 400:
         clean_msg = clean_msg[:397] + "..."
 
     suggested_model: str | None = None
-    if provider_key == "gemini":
+    if provider_key.lower() == "gemini":
         for match in _SUGGESTED_MODEL_RE.findall(clean_msg):
             if match != model_id:
                 suggested_model = f"gemini/{match}"
                 break
 
+    prefix = f"HTTP {status_code}: " if status_code is not None else ""
     return ChatStreamError(
-        f"HTTP {status_code}: {clean_msg}",
+        f"{prefix}{clean_msg}",
         status_code=status_code,
         suggested_model=suggested_model,
     )
 
 
-def _finalize_openai_tool_calls(acc: dict[int, dict[str, Any]]) -> list[ToolCall]:
-    """Convert accumulated OpenAI streaming delta tool_calls into ToolCall objects."""
+def _extract_tool_calls(chunk: AIMessageChunk) -> list[ToolCall]:
+    """Extract normalized ToolCall objects from an accumulated AIMessageChunk."""
     calls: list[ToolCall] = []
-    for idx in sorted(acc.keys()):
-        entry = acc[idx]
-        raw_args = "".join(entry["args_parts"]).strip()
-        try:
-            parsed = json.loads(raw_args) if raw_args else {}
-            args = parsed if isinstance(parsed, dict) else {}
-        except json.JSONDecodeError:
-            args = {"raw_arguments": raw_args}
+    for idx, tc in enumerate(chunk.tool_calls or []):
+        name = str(tc.get("name", ""))
+        if not name:
+            continue
+        args = tc.get("args")
         calls.append(
             ToolCall(
-                id=entry["id"] or f"call_{idx}",
-                name=entry["name"],
-                arguments=args,
+                id=str(tc.get("id") or f"call_{idx}"),
+                name=name,
+                arguments=dict(args) if isinstance(args, dict) else {},
             )
         )
     return calls
-
-
-async def _stream_openai_compatible(
-    *,
-    provider_key: str,
-    base_url: str,
-    api_key: str,
-    model_id: str,
-    messages: list[ChatMessage],
-    temperature: float = 0.7,
-    include_stream_usage: bool = True,
-    tools: list[dict[str, Any]] | None = None,
-) -> AsyncIterator[StreamChunk]:
-    """Stream completions from any OpenAI-compatible SSE endpoint."""
-    payload: dict[str, Any] = {
-        "model": model_id,
-        "messages": [m.to_openai_dict() for m in messages],
-        "stream": True,
-        "temperature": temperature,
-    }
-    if include_stream_usage:
-        payload["stream_options"] = {"include_usage": True}
-    if tools:
-        payload["tools"] = tools
-        payload["tool_choice"] = "auto"
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    tool_acc: dict[int, dict[str, Any]] = {}
-
-    try:
-        async with (
-            httpx.AsyncClient(timeout=60.0) as client,
-            client.stream(
-                "POST",
-                f"{base_url}/chat/completions",
-                json=payload,
-                headers=headers,
-            ) as resp,
-        ):
-            if resp.status_code >= 400:
-                body = (await resp.aread()).decode("utf-8", errors="replace")
-                raise _parse_provider_error(
-                    provider_key=provider_key,
-                    model_id=model_id,
-                    status_code=resp.status_code,
-                    raw_body=body,
-                )
-
-            async for line in resp.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                data_str = line[5:].strip()
-                if data_str == "[DONE]":
-                    break
-
-                try:
-                    event = json.loads(data_str)
-                except json.JSONDecodeError:
-                    continue
-
-                usage_obj = event.get("usage")
-                usage: TokenUsage | None = None
-                if isinstance(usage_obj, dict):
-                    usage = TokenUsage(
-                        prompt_tokens=int(usage_obj.get("prompt_tokens", 0)),
-                        completion_tokens=int(usage_obj.get("completion_tokens", 0)),
-                        estimated=False,
-                    )
-
-                choices = event.get("choices") or []
-                if not choices:
-                    if usage is not None:
-                        yield StreamChunk(usage=usage)
-                    continue
-
-                choice = choices[0]
-                delta_obj = choice.get("delta", {})
-                delta = delta_obj.get("content") or ""
-                finish_reason = choice.get("finish_reason")
-
-                for tc in delta_obj.get("tool_calls") or []:
-                    idx = int(tc.get("index", 0))
-                    slot = tool_acc.setdefault(
-                        idx,
-                        {"id": "", "name": "", "args_parts": []},
-                    )
-                    if tc.get("id"):
-                        slot["id"] = str(tc["id"])
-                    fn = tc.get("function") or {}
-                    if fn.get("name"):
-                        slot["name"] += str(fn["name"])
-                    if fn.get("arguments"):
-                        slot["args_parts"].append(str(fn["arguments"]))
-
-                if delta or usage is not None or finish_reason:
-                    yield StreamChunk(delta=delta, usage=usage, finish_reason=finish_reason)
-
-        if tool_acc:
-            yield StreamChunk(tool_calls=_finalize_openai_tool_calls(tool_acc))
-    except httpx.HTTPError as exc:
-        raise ChatStreamError(f"Network error: {exc}") from exc
-
-
-def _build_gemini_contents(messages: list[ChatMessage]) -> tuple[list[str], list[dict[str, Any]]]:
-    """Convert ChatMessage history into Gemini systemInstruction parts and contents."""
-    system_parts: list[str] = []
-    contents: list[dict[str, Any]] = []
-
-    for msg in messages:
-        if msg.role == MessageRole.SYSTEM:
-            system_parts.append(msg.content)
-            continue
-
-        if msg.role == MessageRole.ASSISTANT:
-            parts: list[dict[str, Any]] = []
-            if msg.content:
-                parts.append({"text": msg.content})
-            for tc in msg.tool_calls or []:
-                fn = tc.get("function", {})
-                raw_args = fn.get("arguments", "{}")
-                try:
-                    parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
-                except json.JSONDecodeError:
-                    parsed_args = {}
-                parts.append(
-                    {
-                        "functionCall": {
-                            "name": fn.get("name", ""),
-                            "args": parsed_args if isinstance(parsed_args, dict) else {},
-                        }
-                    }
-                )
-            if parts:
-                contents.append({"role": "model", "parts": parts})
-            continue
-
-        if msg.role == MessageRole.TOOL:
-            resp_part = {
-                "functionResponse": {
-                    "name": msg.name or "tool",
-                    "response": {"result": msg.content},
-                }
-            }
-            if contents and contents[-1]["role"] == "user" and any(
-                "functionResponse" in p for p in contents[-1]["parts"]
-            ):
-                contents[-1]["parts"].append(resp_part)
-            else:
-                contents.append({"role": "user", "parts": [resp_part]})
-            continue
-
-        contents.append({"role": "user", "parts": [{"text": msg.content}]})
-
-    return system_parts, contents
-
-
-async def _stream_gemini(
-    *,
-    api_key: str,
-    model_id: str,
-    messages: list[ChatMessage],
-    temperature: float = 0.7,
-    function_declarations: list[dict[str, Any]] | None = None,
-) -> AsyncIterator[StreamChunk]:
-    """Stream completions from Gemini streamGenerateContent?alt=sse."""
-    system_parts, contents = _build_gemini_contents(messages)
-
-    payload: dict[str, Any] = {
-        "contents": contents,
-        "generationConfig": {"temperature": temperature},
-    }
-    if system_parts:
-        payload["systemInstruction"] = {"parts": [{"text": "\n\n".join(system_parts)}]}
-    if function_declarations:
-        payload["tools"] = [{"functionDeclarations": function_declarations}]
-
-    url = f"{GEMINI_API_BASE}/models/{model_id}:streamGenerateContent"
-    params = {"alt": "sse", "key": api_key}
-
-    call_seq = 0
-    try:
-        async with (
-            httpx.AsyncClient(timeout=60.0) as client,
-            client.stream("POST", url, params=params, json=payload) as resp,
-        ):
-            if resp.status_code >= 400:
-                body = (await resp.aread()).decode("utf-8", errors="replace")
-                raise _parse_provider_error(
-                    provider_key="gemini",
-                    model_id=model_id,
-                    status_code=resp.status_code,
-                    raw_body=body,
-                )
-
-            async for line in resp.aiter_lines():
-                if not line or not line.startswith("data:"):
-                    continue
-                data_str = line[5:].strip()
-                if not data_str or data_str == "[DONE]":
-                    continue
-
-                try:
-                    event = json.loads(data_str)
-                except json.JSONDecodeError:
-                    continue
-
-                usage: TokenUsage | None = None
-                meta = event.get("usageMetadata")
-                if isinstance(meta, dict):
-                    usage = TokenUsage(
-                        prompt_tokens=int(meta.get("promptTokenCount", 0)),
-                        completion_tokens=int(meta.get("candidatesTokenCount", 0)),
-                        estimated=False,
-                    )
-
-                candidates = event.get("candidates") or []
-                text_parts: list[str] = []
-                tool_calls: list[ToolCall] = []
-                finish_reason: str | None = None
-                if candidates:
-                    cand = candidates[0]
-                    finish_reason = cand.get("finishReason")
-                    parts = cand.get("content", {}).get("parts", [])
-                    for p in parts:
-                        if not isinstance(p, dict):
-                            continue
-                        if "text" in p and p["text"]:
-                            text_parts.append(str(p["text"]))
-                        if "functionCall" in p and isinstance(p["functionCall"], dict):
-                            fc = p["functionCall"]
-                            call_seq += 1
-                            args = fc.get("args")
-                            tool_calls.append(
-                                ToolCall(
-                                    id=f"gemini_call_{call_seq}",
-                                    name=str(fc.get("name", "")),
-                                    arguments=args if isinstance(args, dict) else {},
-                                )
-                            )
-
-                text_delta = "".join(text_parts)
-                if text_delta or tool_calls or usage is not None or finish_reason:
-                    yield StreamChunk(
-                        delta=text_delta,
-                        usage=usage,
-                        finish_reason=finish_reason,
-                        tool_calls=tool_calls or None,
-                    )
-    except httpx.HTTPError as exc:
-        raise ChatStreamError(f"Network error: {exc}") from exc
 
 
 async def stream_chat_completion(
@@ -389,43 +192,51 @@ async def stream_chat_completion(
     api_key: str,
     messages: list[ChatMessage],
     temperature: float = 0.7,
-    openai_tools: list[dict[str, Any]] | None = None,
-    gemini_declarations: list[dict[str, Any]] | None = None,
+    tools: Sequence[BaseTool] | None = None,
 ) -> AsyncIterator[StreamChunk]:
-    """Dispatch streaming completion to the requested provider."""
-    pkey = provider_key.lower()
-    if pkey == "groq":
-        async for chunk in _stream_openai_compatible(
-            provider_key="groq",
-            base_url=GROQ_API_BASE,
-            api_key=api_key,
+    """Stream completions through LangChain's BaseChatModel.astream API."""
+    model = build_chat_model(
+        provider_key=provider_key,
+        model_id=model_id,
+        api_key=api_key,
+        temperature=temperature,
+        streaming=True,
+    )
+    runnable: Runnable[Any, BaseMessage] = bind_model_tools(model, tools) if tools else model
+    lc_messages = to_langchain_messages(messages)
+
+    accumulated: AIMessageChunk | None = None
+    try:
+        async for item in runnable.astream(lc_messages):
+            if isinstance(item, AIMessageChunk):
+                accumulated = item if accumulated is None else accumulated + item
+                delta = str(item.text)
+                usage: TokenUsage | None = None
+                if item.usage_metadata:
+                    usage = TokenUsage(
+                        prompt_tokens=int(item.usage_metadata.get("input_tokens", 0)),
+                        completion_tokens=int(item.usage_metadata.get("output_tokens", 0)),
+                        estimated=False,
+                    )
+                finish_reason = item.response_metadata.get("finish_reason")
+                if delta or usage is not None or finish_reason:
+                    yield StreamChunk(
+                        delta=delta,
+                        usage=usage,
+                        finish_reason=str(finish_reason) if finish_reason else None,
+                    )
+            elif isinstance(item, BaseMessage):
+                msg_delta = str(item.text) if hasattr(item, "text") else str(item.content)
+                if msg_delta:
+                    yield StreamChunk(delta=msg_delta)
+
+        if accumulated is not None:
+            tool_calls = _extract_tool_calls(accumulated)
+            if tool_calls:
+                yield StreamChunk(tool_calls=tool_calls)
+    except Exception as exc:
+        raise parse_langchain_error(
+            exc,
+            provider_key=provider_key,
             model_id=model_id,
-            messages=messages,
-            temperature=temperature,
-            include_stream_usage=True,
-            tools=openai_tools,
-        ):
-            yield chunk
-    elif pkey == "nvidia":
-        async for chunk in _stream_openai_compatible(
-            provider_key="nvidia",
-            base_url=NVIDIA_API_BASE,
-            api_key=api_key,
-            model_id=model_id,
-            messages=messages,
-            temperature=temperature,
-            include_stream_usage=False,
-            tools=openai_tools,
-        ):
-            yield chunk
-    elif pkey == "gemini":
-        async for chunk in _stream_gemini(
-            api_key=api_key,
-            model_id=model_id,
-            messages=messages,
-            temperature=temperature,
-            function_declarations=gemini_declarations,
-        ):
-            yield chunk
-    else:
-        raise ChatStreamError(f"Unsupported chat provider: {provider_key}")
+        ) from exc

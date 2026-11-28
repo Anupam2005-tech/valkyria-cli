@@ -13,8 +13,8 @@ from pinecone import Pinecone, ServerlessSpec
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from valkyrie.core.config import PineconeConfig
-    from valkyrie.rag.chunker import DocumentChunk
+    from valkyria.core.config import PineconeConfig
+    from valkyria.rag.chunker import DocumentChunk
 
 
 @dataclass

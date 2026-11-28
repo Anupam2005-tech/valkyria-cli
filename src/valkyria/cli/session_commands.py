@@ -7,10 +7,10 @@ from __future__ import annotations
 import click
 from rich.table import Table
 
-from valkyrie.chat.engine import build_system_prompt
-from valkyrie.chat.messages import ChatMessage, MessageRole
-from valkyrie.core.config import ValkyrieConfig
-from valkyrie.core.console import (
+from valkyria.chat.engine import build_system_prompt
+from valkyria.chat.messages import ChatMessage, MessageRole
+from valkyria.core.config import ValkyriaConfig
+from valkyria.core.console import (
     console,
     print_error,
     print_info,
@@ -19,8 +19,8 @@ from valkyrie.core.console import (
     print_success,
     print_warning,
 )
-from valkyrie.core.workspace import detect_workspace_root
-from valkyrie.sessions.store import SessionStore
+from valkyria.core.workspace import detect_workspace_root
+from valkyria.sessions.store import SessionStore
 
 
 def _build_extractive_summary(messages: list[ChatMessage], keep_last: int) -> str:
@@ -55,7 +55,7 @@ def list_cmd(show_all: bool) -> None:
     console.print()
 
     if not sessions:
-        print_info("No sessions found. Start one with [bold]valkyrie chat[/bold].")
+        print_info("No sessions found. Start one with [bold]valkyria chat[/bold].")
         console.print()
         return
 
@@ -84,7 +84,7 @@ def list_cmd(show_all: bool) -> None:
 @click.option("--model", "model_id", default=None, help="Override chat model for this session.")
 def new(title: str | None, model_id: str | None) -> None:
     """Create a new persistent session."""
-    config = ValkyrieConfig.load()
+    config = ValkyriaConfig.load()
     selected = model_id or config.models.chat or "unassigned"
     store = SessionStore()
     sys_msg = ChatMessage(role=MessageRole.SYSTEM, content=build_system_prompt(config))
@@ -97,7 +97,7 @@ def new(title: str | None, model_id: str | None) -> None:
 
     console.print()
     print_success(f"Created session [bold]{created.title}[/bold] ([dim]{created.id}[/dim])")
-    print_info(f"Resume with: [bold]valkyrie chat --session {created.id}[/bold]")
+    print_info(f"Resume with: [bold]valkyria chat --session {created.id}[/bold]")
     console.print()
 
 

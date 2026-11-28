@@ -1,13 +1,25 @@
 """
-Chat message protocol and context window accounting.
+Chat message protocol, LangChain message conversions, and context window accounting.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
+
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
+from langchain_core.messages import (
+    ToolCall as LCToolCall,
+)
 
 
 class MessageRole(StrEnum):
@@ -59,6 +71,108 @@ class ChatMessage:
             payload["tool_calls"] = self.tool_calls
         return payload
 
+    def to_langchain_message(self) -> BaseMessage:
+        """Convert this ChatMessage into a LangChain BaseMessage."""
+        if self.role == MessageRole.SYSTEM:
+            return SystemMessage(content=self.content)
+        if self.role == MessageRole.TOOL:
+            return ToolMessage(
+                content=self.content,
+                name=self.name or "tool",
+                tool_call_id=self.tool_call_id or "call_0",
+            )
+        if self.role == MessageRole.ASSISTANT:
+            lc_calls: list[LCToolCall] = []
+            for tc in self.tool_calls or []:
+                if "function" in tc and isinstance(tc["function"], dict):
+                    fn = tc["function"]
+                    raw_args = fn.get("arguments", "{}")
+                    try:
+                        parsed = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+                    except json.JSONDecodeError:
+                        parsed = {}
+                    lc_calls.append(
+                        LCToolCall(
+                            id=str(tc.get("id") or "call_0"),
+                            name=str(fn.get("name", "")),
+                            args=parsed if isinstance(parsed, dict) else {},
+                        )
+                    )
+                else:
+                    args = tc.get("args", {})
+                    lc_calls.append(
+                        LCToolCall(
+                            id=str(tc.get("id") or "call_0"),
+                            name=str(tc.get("name", "")),
+                            args=args if isinstance(args, dict) else {},
+                        )
+                    )
+            return AIMessage(content=self.content, tool_calls=lc_calls)
+        return HumanMessage(content=self.content)
+
+    @classmethod
+    def from_langchain_message(
+        cls,
+        message: BaseMessage,
+        *,
+        model: str | None = None,
+    ) -> ChatMessage:
+        """Construct a ChatMessage from a LangChain BaseMessage."""
+        text = str(message.text) if hasattr(message, "text") else str(message.content)
+        if isinstance(message, SystemMessage):
+            return cls(role=MessageRole.SYSTEM, content=text)
+        if isinstance(message, ToolMessage):
+            return cls(
+                role=MessageRole.TOOL,
+                content=text,
+                name=message.name,
+                tool_call_id=message.tool_call_id,
+            )
+        if isinstance(message, AIMessage):
+            serialized_calls: list[dict[str, Any]] | None = None
+            if message.tool_calls:
+                serialized_calls = [
+                    {
+                        "id": str(tc.get("id") or f"call_{idx}"),
+                        "type": "function",
+                        "function": {
+                            "name": str(tc.get("name", "")),
+                            "arguments": json.dumps(tc.get("args", {})),
+                        },
+                    }
+                    for idx, tc in enumerate(message.tool_calls)
+                ]
+            usage: TokenUsage | None = None
+            if message.usage_metadata:
+                usage = TokenUsage(
+                    prompt_tokens=int(message.usage_metadata.get("input_tokens", 0)),
+                    completion_tokens=int(message.usage_metadata.get("output_tokens", 0)),
+                    estimated=False,
+                )
+            return cls(
+                role=MessageRole.ASSISTANT,
+                content=text,
+                model=model,
+                tool_calls=serialized_calls,
+                usage=usage,
+            )
+        return cls(role=MessageRole.USER, content=text)
+
+
+def to_langchain_messages(messages: list[ChatMessage]) -> list[BaseMessage]:
+    """Convert ChatMessage history into LangChain messages, coalescing system blocks."""
+    system_blocks: list[str] = []
+    other_msgs: list[BaseMessage] = []
+    for msg in messages:
+        if msg.role == MessageRole.SYSTEM:
+            if msg.content.strip():
+                system_blocks.append(msg.content)
+        else:
+            other_msgs.append(msg.to_langchain_message())
+    if system_blocks:
+        return [SystemMessage(content="\n\n".join(system_blocks)), *other_msgs]
+    return other_msgs
+
 
 def estimate_tokens(text: str) -> int:
     """Fast heuristic token estimate (~4 chars per token) when exact counts are absent."""
@@ -105,4 +219,3 @@ class ContextBudget:
             return f"~{self.used_tokens:,} tokens / unknown limit"
         pct = self.utilization_pct or 0.0
         return f"{self.used_tokens:,} / {self.context_window:,} tokens ({pct:.0f}%)"
-

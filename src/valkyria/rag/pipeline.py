@@ -7,19 +7,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from valkyrie.rag.chunker import DocumentChunk, chunk_text
-from valkyrie.rag.embeddings import (
+from valkyria.rag.chunker import DocumentChunk, chunk_text
+from valkyria.rag.embeddings import (
     embed_texts,
     resolve_pinecone_api_key,
     resolve_pinecone_config,
 )
-from valkyrie.rag.files import collect_indexable_files
-from valkyrie.rag.pinecone_store import PineconeRagStore, SearchHit
+from valkyria.rag.files import collect_indexable_files
+from valkyria.rag.pinecone_store import PineconeRagStore, SearchHit
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from valkyrie.core.config import ValkyrieConfig
+    from valkyria.core.config import ValkyriaConfig
 
 
 @dataclass
@@ -36,7 +36,7 @@ class IndexSummary:
 def get_pinecone_store(
     *,
     workspace_root: Path,
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     api_keys: dict[str, str] | None = None,
     pinecone_api_key: str | None = None,
     client: Any | None = None,
@@ -57,7 +57,7 @@ def get_pinecone_store(
 def get_workspace_rag_store(
     *,
     workspace_root: Path,
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     api_keys: dict[str, str] | None = None,
     pinecone_api_key: str | None = None,
 ) -> PineconeRagStore:
@@ -80,7 +80,7 @@ def index_workspace_path(
     workspace_root: Path,
     target: str,
     *,
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     api_keys: dict[str, str] | None = None,
     pinecone_api_key: str | None = None,
     store: PineconeRagStore | None = None,
@@ -131,7 +131,7 @@ def search_workspace_rag(
     query: str,
     workspace_root: Path,
     *,
-    config: ValkyrieConfig,
+    config: ValkyriaConfig,
     api_keys: dict[str, str] | None = None,
     pinecone_api_key: str | None = None,
     store: PineconeRagStore | None = None,
