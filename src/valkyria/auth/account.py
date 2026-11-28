@@ -47,8 +47,9 @@ def _run_browser_oauth(*, select_account: bool = False) -> AuthUser | None:
     if select_account:
         query["select_account"] = "1"
     login_url = urlunsplit(parts._replace(query=urlencode(query)))
+    display_url = urlunsplit(parts._replace(query="", fragment=""))
     print_info("Opening your browser for Google sign-in.")
-    print_info(f"If it doesn't open, visit: [accent]{login_url}[/accent]")
+    print_info(f"[accent]{display_url}[/accent]")
     print_info("[dim]Waiting for authentication...[/dim]")
     console.print()
 

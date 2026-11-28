@@ -18,8 +18,15 @@ FIREBASE_CONFIG = {
     "measurementId": "G-5XCHKRN258",
 }
 
-# Hosted web login page URL (override with VALKYRIA_AUTH_URL for local testing)
-AUTH_WEB_URL = os.environ.get("VALKYRIA_AUTH_URL", "https://valkyria-cli.vercel.app/login")
+# Hosted web login page URL (override with a full URL for local testing).
+_default_auth_url = "https://valkyria-cli.vercel.app/login"
+_configured_auth_url = os.environ.get("VALKYRIA_AUTH_URL", "")
+_configured_parts = urlsplit(_configured_auth_url)
+AUTH_WEB_URL = (
+    _configured_auth_url
+    if _configured_parts.scheme in {"http", "https"} and _configured_parts.netloc
+    else _default_auth_url
+)
 _auth_web_parts = urlsplit(AUTH_WEB_URL)
 AUTH_API_BASE = f"{_auth_web_parts.scheme}://{_auth_web_parts.netloc}/api/auth"
 

@@ -107,10 +107,16 @@ def test_browser_login_opens_after_listener_is_ready_with_one_time_state() -> No
         return None
 
     with (
+        patch("valkyria.auth.account.AUTH_WEB_URL", "https://valkyria-cli.vercel.app/login"),
         patch("valkyria.auth.account.webbrowser.open", side_effect=opened_urls.append),
         patch("valkyria.auth.account.run_auth_server", side_effect=start_listener),
+        patch("valkyria.auth.account.print_info") as printed_info,
     ):
         assert _run_browser_oauth(select_account=True) is None
+
+    shown = " ".join(str(call.args[0]) for call in printed_info.call_args_list)
+    assert "https://valkyria-cli.vercel.app/login" in shown
+    assert "state=" not in shown
 
 
 class TestAccountLifecycle:
